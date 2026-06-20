@@ -16,6 +16,33 @@ export interface NavItem {
   href: string;
 }
 
+/** 证据项 */
+export interface EvidenceItem {
+  id: string;
+  label: string;
+  desc: string;
+  status: "ready" | "pending";
+}
+
+/** 证据层 */
+export interface EvidenceLayer {
+  id: string;
+  title: string;
+  subtitle: string;
+  items: EvidenceItem[];
+}
+
+/** Agent 工作流步骤 */
+export interface AgentWorkflowStep {
+  agent: string;
+  icon: string;
+  phase: string;
+  question: string;
+  insight: string;
+  output: string;
+  evidenceId?: string;
+}
+
 /** 资源下载项 */
 export interface Resource {
   id: string;
