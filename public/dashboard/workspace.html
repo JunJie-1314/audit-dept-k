@@ -6,7 +6,7 @@
 /* 轻量口令门：挡普通访客与爬虫（非加密；数据文件本身仍公开可取） */
 (function(){
   var KEY='kaudit_dashboard_gate';
-  var EXPECT='1d34885bf4555d1b0a614bfd5176924720815a16fc800ddbd8e25860da533bd9';
+  var EXPECT='83b826713c5b4c3275c47c2b91bedcde2cbebb0125327efc7441049cb9f0df8c';
   function locked(){
     try{ return !localStorage.getItem(KEY); }catch(e){ return true; }
   }
