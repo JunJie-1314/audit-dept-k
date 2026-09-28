@@ -382,8 +382,10 @@
 </header>
 
 <div id="staleDataBanner" style="display:none;align-items:center;flex-wrap:wrap;gap:6px 12px;padding:10px 24px;background:#FFF7ED;border-bottom:1px solid #FDBA74;color:#9A3412;font-size:13px;">
-  <strong>⚠️ 数据已停更 <span id="staleDataDays">—</span> 天</strong>
-  <span>最新数据截至 <b id="staleDataEnd">—</b>，请运行 <code style="background:rgba(154,52,18,.12);padding:2px 8px;border-radius:4px;font-weight:600;">python update.py</code> 恢复同步。</span>
+  <span id="staleDataLine" style="display:none;"><strong>⚠️ 数据已停更 <span id="staleDataDays">—</span> 天</strong>
+  <span>最新数据截至 <b id="staleDataEnd">—</b>，请运行 <code style="background:rgba(154,52,18,.12);padding:2px 8px;border-radius:4px;font-weight:600;">python update.py</code> 恢复同步。</span></span>
+  <span id="syncFailLine" style="display:none;"><strong>🔴 上次自动同步失败</strong>
+  <span>失败步骤 <b id="syncFailStep">—</b> · 时间 <b id="syncFailAt">—</b> · 连续 <b id="syncFailCount">—</b> 次，详见 update.log。</span></span>
 </div>
 
 <div class="period-bar">
@@ -414,14 +416,28 @@
 (function(){
   try{
     var d=window.WEEKLY_DATA,weeks=(d&&d.weeks)||[],last=weeks[weeks.length-1];
+    var byId=document.getElementById.bind(document),show=false;
+    /* 1) 上次自动同步失败（update_status.json 由 update.py 写入，build 时注入） */
+    var st=d&&d.update_status;
+    if(st&&st.ok===false){
+      byId('syncFailStep').textContent=st.failed_step||'未知步骤';
+      byId('syncFailAt').textContent=String(st.last_run||'').replace('T',' ');
+      byId('syncFailCount').textContent=st.consecutive_failures||1;
+      byId('syncFailLine').style.display='inline';
+      show=true;
+    }
+    /* 2) 数据停更（阈值 10 天） */
     var end=(last&&last.period_end)||String((d&&d.generated_at)||'').slice(0,10);
-    if(!end)return;
-    var days=Math.floor((Date.now()-new Date(end+'T23:59:59').getTime())/864e5);
-    if(days<=10)return;
-    var byId=document.getElementById.bind(document);
-    byId('staleDataDays').textContent=days;
-    byId('staleDataEnd').textContent=end;
-    byId('staleDataBanner').style.display='flex';
+    if(end){
+      var days=Math.floor((Date.now()-new Date(end+'T23:59:59').getTime())/864e5);
+      if(days>10){
+        byId('staleDataDays').textContent=days;
+        byId('staleDataEnd').textContent=end;
+        byId('staleDataLine').style.display='inline';
+        show=true;
+      }
+    }
+    if(show)byId('staleDataBanner').style.display='flex';
   }catch(e){}
 })();
 

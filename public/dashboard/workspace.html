@@ -745,6 +745,45 @@ body{
 .tr-modal-body .tb-link{color:var(--primary2);border-bottom:1px dashed var(--primary2);}
 .tr-modal-body .tb-img-ph{margin:10px 0;padding:14px;border:1px dashed var(--border2);border-radius:8px;background:rgba(148,163,184,.06);color:var(--text3);font-size:12px;text-align:center;}
 .tr-modal-body .tb-hr{border:none;border-top:1px solid var(--border);margin:18px 0;}
+/* ===== V2 个人经营报告（四系统 XP / 资产 / 成就 / 原则，v5.4 起由周记 growth 块驱动） ===== */
+.growth-report{padding:18px 20px 16px;}
+.gr-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.gr-head h3{margin:0;font-size:17px;color:var(--text);}
+.gr-sub{font-size:12px;color:var(--text3);}
+.gr-empty{color:var(--text3);font-size:13px;line-height:1.8;padding:6px 0;}
+.gr-cum{margin-top:10px;font-size:13px;color:var(--text2);}
+.gr-cum b{color:#F5C842;}
+.gr-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px;}
+.gr-kpi{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center;min-width:0;}
+.gr-kpi b{display:block;font-size:22px;color:#F5C842;font-variant-numeric:tabular-nums;}
+.gr-kpi span{font-size:12px;color:var(--text3);}
+.gr-bars{display:flex;flex-direction:column;gap:9px;margin-bottom:14px;}
+.gr-sys{display:grid;grid-template-columns:22px 92px 1fr 54px 26px;align-items:center;gap:8px;font-size:13px;min-width:0;}
+.gr-sys-name{color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.gr-sys-bar{height:8px;border-radius:99px;background:rgba(148,163,184,.16);overflow:hidden;}
+.gr-sys-bar i{display:block;height:100%;border-radius:99px;}
+.gr-sys-xp{text-align:right;color:var(--text);font-variant-numeric:tabular-nums;}
+.gr-sys-unit{color:var(--text3);font-size:11px;}
+.gr-level{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:14px;}
+.gr-level-top{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--text2);margin-bottom:8px;flex-wrap:wrap;}
+.gr-level-top b{color:#F5C842;}
+.gr-level-bar{height:10px;border-radius:99px;background:rgba(148,163,184,.16);overflow:hidden;}
+.gr-level-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#8A7437,#D4AF37,#F5C842);}
+.gr-block{margin-bottom:12px;}
+.gr-block h4{margin:0 0 8px;font-size:13px;color:var(--text2);font-weight:600;}
+.gr-block p{margin:0;font-size:13px;line-height:1.75;color:var(--text);}
+.gr-tags,.gr-achs{display:flex;flex-wrap:wrap;gap:8px;}
+.gr-tag{font-size:12px;padding:4px 10px;border-radius:99px;border:1px solid rgba(212,175,55,.28);color:#F5F0DC;background:rgba(212,175,55,.08);}
+.gr-ach{font-size:12px;padding:5px 10px;border-radius:8px;border:1px solid rgba(212,175,55,.28);background:rgba(212,175,55,.10);color:#F5F0DC;}
+.gr-ach b{color:#F5C842;margin-left:6px;}
+.gr-principles{margin:0;padding-left:18px;font-size:13px;line-height:1.85;color:var(--text);}
+.gr-p-sys{color:var(--text3);font-size:12px;margin-right:6px;}
+.gr-p-ev{display:block;color:var(--text3);font-size:12px;}
+.gr-foot{margin-top:6px;padding-top:10px;border-top:1px dashed var(--border);font-size:12px;color:var(--text3);line-height:1.9;}
+@media (max-width:640px){
+  .gr-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .gr-sys{grid-template-columns:20px 74px 1fr 44px 22px;font-size:12px;}
+}
 </style>
 </head>
 <body>
@@ -794,14 +833,19 @@ body{
     </header>
 
     <div id="staleDataBanner" style="display:none;align-items:center;flex-wrap:wrap;gap:6px 12px;padding:10px 16px;margin-bottom:14px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);border-radius:10px;color:#FCD34D;font-size:13px;">
-      <strong>⚠️ 数据已停更 <span id="staleDataDays">—</span> 天</strong>
-      <span style="opacity:.85;">最新数据截至 <b id="staleDataEnd">—</b>，请运行 <code style="background:rgba(252,211,77,.15);padding:2px 8px;border-radius:4px;font-weight:600;">python update.py</code> 恢复同步。</span>
+      <span id="staleDataLine" style="display:none;"><strong>⚠️ 数据已停更 <span id="staleDataDays">—</span> 天</strong>
+      <span style="opacity:.85;">最新数据截至 <b id="staleDataEnd">—</b>，请运行 <code style="background:rgba(252,211,77,.15);padding:2px 8px;border-radius:4px;font-weight:600;">python update.py</code> 恢复同步。</span></span>
+      <span id="syncFailLine" style="display:none;"><strong>🔴 上次自动同步失败</strong>
+      <span style="opacity:.85;">失败步骤 <b id="syncFailStep">—</b> · 时间 <b id="syncFailAt">—</b> · 连续 <b id="syncFailCount">—</b> 次，详见 update.log。</span></span>
     </div>
 
     <div class="container">
 
       <!-- Hero -->
       <section id="sec-hero" class="grid g-hero" style="margin-bottom:16px;"><div class="hero" id="heroBox"></div></section>
+
+      <!-- V2 个人经营报告：本周 XP / 资产 / 成就 / 原则（数据来自周记 frontmatter growth 块） -->
+      <section id="sec-growth" class="card growth-report" style="scroll-margin-top:80px;margin-bottom:16px;"></section>
 
       <!-- KPI -->
       <section class="grid g-kpi" style="margin-bottom:16px;" id="kpiGrid"></section>
@@ -890,14 +934,28 @@ body{
 (function(){
   try{
     var d=window.WEEKLY_DATA,weeks=(d&&d.weeks)||[],last=weeks[weeks.length-1];
+    var byId=document.getElementById.bind(document),show=false;
+    /* 1) 上次自动同步失败（update_status.json 由 update.py 写入，build 时注入） */
+    var st=d&&d.update_status;
+    if(st&&st.ok===false){
+      byId('syncFailStep').textContent=st.failed_step||'未知步骤';
+      byId('syncFailAt').textContent=String(st.last_run||'').replace('T',' ');
+      byId('syncFailCount').textContent=st.consecutive_failures||1;
+      byId('syncFailLine').style.display='inline';
+      show=true;
+    }
+    /* 2) 数据停更（阈值 10 天） */
     var end=(last&&last.period_end)||String((d&&d.generated_at)||'').slice(0,10);
-    if(!end)return;
-    var days=Math.floor((Date.now()-new Date(end+'T23:59:59').getTime())/864e5);
-    if(days<=10)return;
-    var byId=document.getElementById.bind(document);
-    byId('staleDataDays').textContent=days;
-    byId('staleDataEnd').textContent=end;
-    byId('staleDataBanner').style.display='flex';
+    if(end){
+      var days=Math.floor((Date.now()-new Date(end+'T23:59:59').getTime())/864e5);
+      if(days>10){
+        byId('staleDataDays').textContent=days;
+        byId('staleDataEnd').textContent=end;
+        byId('staleDataLine').style.display='inline';
+        show=true;
+      }
+    }
+    if(show)byId('staleDataBanner').style.display='flex';
   }catch(e){}
 })();
 
@@ -1628,10 +1686,103 @@ function closeTrophyLightbox(){
   $("trophyLightboxImg").src = "";
 }
 
+/* ================= V2 个人经营报告（四系统 XP / 资产 / 成就 / 原则） ================= */
+
+const GR_FALLBACK_SYSTEMS=[
+  {id:"growth",name:"成长系统",icon:"🟦",color:"#2251FF"},
+  {id:"social",name:"品牌社交系统",icon:"🟥",color:"#D97706"},
+  {id:"fun",name:"娱乐系统",icon:"🟩",color:"#059669"},
+  {id:"life",name:"生活系统",icon:"🟨",color:"#7C3AED"}
+];
+const GR_ASSET_LABELS={capability:"能力",knowledge:"知识",project:"项目",relation:"关系",brand:"品牌"};
+
+/* 四系统定义来自注入的 growth_rules.json；缺失时用内置回落，保证前端不报错 */
+function grSystems(){const r=DATA&&DATA.growth_rules;return (r&&r.systems)||GR_FALLBACK_SYSTEMS;}
+function grLevelXp(){const r=DATA&&DATA.growth_rules;return (r&&r.xp&&r.xp.level_xp)||5000;}
+function grLevel(totalXp){return 1+Math.floor(Math.max(0,totalXp)/grLevelXp());}
+/* 跨周累计：只统计有 growth 打标的周（与成就墙 aggregateForTrophy 同范式） */
+function grCumulative(){
+  let total=0,weeks=0;
+  WEEKS.forEach(function(w){
+    const g=w&&w.growth;
+    if(g&&g.xp&&typeof g.xp.total==="number"){total+=g.xp.total;weeks++;}
+  });
+  return {total:total,weeks:weeks};
+}
+function grBehaviorsText(g){
+  const systems=grSystems(),parts=[];
+  systems.forEach(function(s){
+    const m=(g.behaviors||{})[s.id];
+    if(!m)return;
+    const items=Object.keys(m).sort(function(a,b){return m[b]-m[a];}).slice(0,4)
+      .map(function(k){return esc(k)+" "+m[k];});
+    if(items.length)parts.push(s.icon+" "+items.join(" · "));
+  });
+  return parts.join("　｜　");
+}
+function renderGrowthReport(){
+  const host=$("sec-growth");
+  if(!host)return;
+  const w=curWeek(),g=w&&w.growth,systems=grSystems(),cum=grCumulative();
+  if(!g){
+    host.innerHTML=`<div class="gr-head"><h3>🧬 我的个人经营报告</h3><span class="gr-sub">v5.4 四系统口径</span></div>
+      <div class="gr-empty">${w?esc(w.week_label):"本周"}尚无成长打标——自 weekly-review v5.4（2026-09-28）起，周记会自动写入四系统 XP / 资产 / 成就 / 原则；更早的周保持空态，不做补写。</div>
+      ${cum.weeks?`<div class="gr-cum">已累计 <b>${cum.total.toLocaleString()}</b> XP（${cum.weeks} 周有打标）· 当前 LV.<b>${grLevel(cum.total)}</b></div>`:""}`;
+    return;
+  }
+  const xp=g.xp||{},total=xp.total||0;
+  const levelXp=grLevelXp(),into=cum.total%levelXp,pct=Math.min(100,Math.round(into/levelXp*100));
+  const level=grLevel(cum.total),levelFrom=grLevel(Math.max(0,cum.total-total));
+  const maxXp=Math.max.apply(null,systems.map(function(s){return xp[s.id]||0;}).concat([1]));
+  const bars=systems.map(function(s){
+    const v=xp[s.id]||0;
+    return `<div class="gr-sys"><span>${s.icon}</span><span class="gr-sys-name">${esc(s.name)}</span>
+      <span class="gr-sys-bar"><i style="width:${Math.round(v/maxXp*100)}%;background:${s.color}"></i></span>
+      <b class="gr-sys-xp">${v}</b><span class="gr-sys-unit">XP</span></div>`;
+  }).join("");
+  const assets=(g.assets||[]).map(function(a){
+    return `<span class="gr-tag" title="${esc(a.evidence||"")}">${GR_ASSET_LABELS[a.kind]||"资产"} · ${esc(a.name||"")}</span>`;
+  }).join("");
+  const achievements=(g.achievements||[]).map(function(a){
+    return `<span class="gr-ach" title="${esc(a.evidence||"")}">🏆 ${esc(a.title||a.id||"")}${a.xp?`<b>+${a.xp} XP</b>`:""}</span>`;
+  }).join("");
+  const principles=(g.principles||[]).map(function(p){
+    const sys=systems.filter(function(s){return s.id===p.system;})[0];
+    return `<li><span class="gr-p-sys">${sys?sys.icon+" "+esc(sys.name):esc(p.system||"")}</span>${esc(p.principle||"")}${p.event_index?`<span class="gr-p-ev">↳ ${esc(p.event_index)}</span>`:""}</li>`;
+  }).join("");
+  const first=(g.assets||[])[0];
+  const behaviors=grBehaviorsText(g);
+  host.innerHTML=`<div class="gr-head"><h3>🧬 我的个人经营报告</h3>
+      <span class="gr-sub">${w?esc(w.week_label):""} · 四系统 × TLS 杠杆（v5.4）</span></div>
+    <div class="gr-kpis">
+      <div class="gr-kpi"><b>${total.toLocaleString()}</b><span>本周 XP</span></div>
+      <div class="gr-kpi"><b>${(g.assets||[]).length}</b><span>新增资产</span></div>
+      <div class="gr-kpi"><b>${g.streak_days||0}</b><span>天连续行动</span></div>
+      <div class="gr-kpi"><b>${(g.achievements||[]).length}</b><span>本周成就</span></div>
+    </div>
+    <div class="gr-bars">${bars}</div>
+    <div class="gr-level">
+      <div class="gr-level-top"><span>LV.<b>${levelFrom}</b> → LV.<b>${level}</b></span>
+      <span>累计 <b>${cum.total.toLocaleString()}</b> XP · 本级 <b>${into} / ${levelXp}</b></span></div>
+      <div class="gr-level-bar"><i style="width:${pct}%"></i></div>
+    </div>
+    ${achievements?`<div class="gr-block"><h4>🏆 本周成就</h4><div class="gr-achs">${achievements}</div></div>`:""}
+    ${assets?`<div class="gr-block"><h4>📈 本周最大的积累</h4>
+      <p><b>${esc(first.name||"")}</b>（${GR_ASSET_LABELS[first.kind]||"资产"}）${first.evidence?`<br><span class="gr-p-ev">依据：${esc(first.evidence)}</span>`:""}</p>
+      ${(g.assets||[]).length>1?`<div class="gr-tags" style="margin-top:8px;">${assets}</div>`:""}</div>`:""}
+    ${principles?`<div class="gr-block"><h4>🧠 本周最重要的原则</h4><ul class="gr-principles">${principles}</ul></div>`:""}
+    <div class="gr-foot">
+      ${behaviors?`行为分布：${behaviors}<br>`:""}
+      ⚙️ XP = 任务杠杆分（TLS 1-10）× ${(DATA.growth_rules&&DATA.growth_rules.xp&&DATA.growth_rules.xp.per_point)||10}；等级每 ${levelXp.toLocaleString()} XP 一级；明细见当周周记正文的「任务 → 系统 → TLS → XP」表
+      ${g.tls_avg?`｜本周平均杠杆 ${g.tls_avg}`:""}${g.tasks_scored?`（${g.tasks_scored} 个任务）`:""}
+    </div>`;
+}
+
 /* ================= 渲染全部 ================= */
 function renderAll(){
   if(!WEEKS.length){renderNoData();return;}
   renderHero();
+  renderGrowthReport();
   renderKpi();
   renderKiss();
   renderJuntao();
