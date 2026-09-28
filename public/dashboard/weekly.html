@@ -251,9 +251,6 @@
   .badge.green{background:#D1FAE5;color:#047857;}.badge.blue{background:var(--c-primary-soft);color:var(--c-primary);}
   .badge.gray{background:#F1F5F9;color:#64748B;}
 
-  /* C盘空间 */
-  .cmd{display:block;background:#0F172A;color:#E2E8F0;font-family:"Consolas","SF Mono",monospace;font-size:12px;padding:8px 12px;border-radius:6px;margin-top:4px;line-height:1.7;overflow-x:auto;white-space:pre;}
-
   /* KISS */
   .kiss-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
   .kiss-col{background:#FAFBFC;border:1px solid var(--c-border);border-radius:var(--radius);padding:16px;}
@@ -447,8 +444,7 @@ const MODULES=[
   {id:'kiss',name:'KISS复盘',num:7},
   {id:'summary',name:'AI综合点评',num:8},
   {id:'juntao',name:'项目进展',num:9},
-  {id:'disk',name:'C盘空间',num:10},
-  {id:'treasured',name:'珍藏笔记',num:11},
+  {id:'treasured',name:'珍藏笔记',num:10},
 ];
 /** 指标切换定义 */
 const TREND_METRICS=[
@@ -462,10 +458,6 @@ let STATE={curIdx:-1,cmpIdx:-1,trendMetric:'total',projectSel:'juntao'};
 /* ============ 工具函数 ============ */
 /** @returns {number|string} 格式化数字 */
 function fmtNum(v,d){if(v==null||isNaN(v))return'—';const n=Number(v);return d!=null?n.toLocaleString('zh-CN',{minimumFractionDigits:d,maximumFractionDigits:d}):n.toLocaleString('zh-CN');}
-/** @returns {string} 字节数转可读大小（MB/GB） */
-function fmtMB(v){if(v==null||isNaN(v))return'—';if(v>=1073741824)return(v/1073741824).toFixed(1)+' GB';return(v/1048576).toFixed(1)+' MB';}
-/** @returns {string} 磁盘风险等级徽章（safe/low/medium/high） */
-function diskRiskBadge(level){const map={safe:'green',low:'blue',medium:'yellow',high:'red'};const label={safe:'安全',low:'低风险',medium:'中风险',high:'高风险'};return`<span class="badge ${map[level]||'gray'}">${label[level]||level}</span>`;}
 /** @returns {string} 格式化百分比 */
 function fmtPct(v,d){if(v==null||isNaN(v))return'—';return(Number(v)*100).toFixed(d||1)+'%';}
 /** @returns {string} 格式化变化量 */
@@ -478,7 +470,6 @@ function toast(msg,type){const w=document.getElementById('toastWrap');const e=do
 function baseGrid(){return{left:50,right:24,top:40,bottom:36,containLabel:true};}
 function $(id){return document.getElementById(id);}
 function getWeeks(){return(window.WEEKLY_DATA&&window.WEEKLY_DATA.weeks)||[];}
-function getDisk(){return(window.WEEKLY_DATA&&window.WEEKLY_DATA.disk)||null;}
 function getIssueTracking(){return(window.WEEKLY_DATA&&window.WEEKLY_DATA.issue_tracking)||[];}
 
 /**
@@ -641,8 +632,8 @@ function renderAll(){
   if(!cur)return;
   $('periodSummary').innerHTML=`当前 ${cur.week_label} vs ${cmp?cmp.week_label:'—'} · 共${weeks.length}周`;
   const main=$('mainContent');
-  main.innerHTML=renderDecision(cur,cmp)+renderOverview(cur,cmp)+renderIssues()+renderTrend()+renderTools(cur,cmp)+renderContent(cur,cmp)+renderKiss(cur,cmp)+renderSummary(cur,cmp)+renderJuntao(cur)+renderDisk()+renderTreasured();
-  setTimeout(()=>{drawDecisionCharts(cur,cmp);drawOverviewCharts(cur,cmp);drawIssuesCharts();drawTrendCharts();drawToolsCharts(cur,cmp);drawContentCharts(cur,cmp);drawJuntaoCharts();drawDiskCharts();},80);
+  main.innerHTML=renderDecision(cur,cmp)+renderOverview(cur,cmp)+renderIssues()+renderTrend()+renderTools(cur,cmp)+renderContent(cur,cmp)+renderKiss(cur,cmp)+renderSummary(cur,cmp)+renderJuntao(cur)+renderTreasured();
+  setTimeout(()=>{drawDecisionCharts(cur,cmp);drawOverviewCharts(cur,cmp);drawIssuesCharts();drawTrendCharts();drawToolsCharts(cur,cmp);drawContentCharts(cur,cmp);drawJuntaoCharts();},80);
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   const fn=document.querySelector('.nav-item');if(fn)fn.classList.add('active');
   if(window.__attachReadingTracker)window.__attachReadingTracker();
@@ -1430,8 +1421,7 @@ function handleJuntaoExportKeydown(event){
   event.preventDefault();const index=Math.max(0,items.indexOf(document.activeElement));const next=event.key==='ArrowDown'?(index+1)%items.length:(index-1+items.length)%items.length;items[next].focus();
 }
 
-/* ============ 模块10：C盘空间 ============ */
-/* ============ 模块11：珍藏笔记 ============ */
+/* ============ 模块10：珍藏笔记 ============ */
 function getTreasured(){return window.TREASURED_DATA&&window.TREASURED_DATA.domains?window.TREASURED_DATA:null;}
 function renderTreasured(){
   const td=getTreasured();
@@ -1463,62 +1453,6 @@ function closeTreasured(){
   document.body.style.overflow='';
 }
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeTreasured();});
-
-function renderDisk(){
-  const d=getDisk();const weeks=(d&&d.weeks)||[];const cur=weeks[weeks.length-1];
-  if(!d||!cur){return`<section class="section" id="sec-disk"><div class="section-head"><div class="section-title"><span class="tag"></span><h2>C盘空间监控</h2></div></div><p style="color:var(--c-text3);font-size:13px;line-height:1.8;">暂无磁盘扫描数据。每周自动扫描后生成；也可手动运行 <code style="background:#F1F5F9;padding:2px 6px;border-radius:4px;">python scan_c_drive.py</code> 并重新构建看板。</p></section>`;}
-  const u=cur.disk_usage||{};
-  const prev=weeks.length>=2?weeks[weeks.length-2].disk_usage||{}:null;
-  const freeGB=u.free_bytes!=null?u.free_bytes/1073741824:null;
-  const pct=u.used_pct!=null?u.used_pct*100:null;
-  const prevFree=prev&&prev.free_bytes!=null?prev.free_bytes/1073741824:null;
-  const deltaCls=deltaClass(freeGB,prevFree,true);
-  const cats=(cur.categories||[]).filter(c=>c.size_bytes).sort((a,b)=>b.size_bytes-a.size_bytes);
-  const topCat=cats[0]||null;
-  const sugg=cur.suggestions||[];
-  const reclaimable=sugg.reduce((a,s)=>a+(s.size_bytes||0),0);
-  const catRows=cats.map(c=>{
-    const sz=c.size_bytes==null?'无法读取':fmtMB(c.size_bytes);
-    const st=c.cleanable?'<span class="badge green">可清理</span>':'<span class="badge gray">系统管理</span>';
-    return`<tr><td style="white-space:nowrap;">${c.name}</td><td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(c.path||'')}">${escapeHtml(c.path||'—')}</td><td class="num">${sz}</td><td class="num">${fmtNum(c.file_count)}</td><td>${st}</td></tr>`;
-  }).join('');
-  const suggRows=sugg.map(s=>`<tr><td style="white-space:nowrap;">${s.name}</td><td class="num">${fmtMB(s.size_bytes)}</td><td>${diskRiskBadge(s.risk_level)}</td><td style="color:var(--c-text2);font-size:12px;line-height:1.6;">${escapeHtml(s.reason||'')}</td><td><code class="cmd">${escapeHtml(s.clean_command||'—')}</code></td></tr>`).join('');
-  const topFiles=cur.top_files||[];
-  const topHtml=topFiles.length?`<div class="chart-row"><div class="chart-box"><h4>Top 大文件（${cur.week_label}）</h4><div class="table-wrap"><table class="data-table"><thead><tr><th>文件</th><th>大小</th></tr></thead><tbody>${topFiles.map(f=>`<tr><td style="max-width:480px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(f.path)}">${escapeHtml(f.path)}</td><td class="num">${fmtMB(f.size_bytes)}</td></tr>`).join('')}</tbody></table></div></div></div>`:'';
-  return`<section class="section" id="sec-disk">
-    <div class="section-head"><div class="section-title"><span class="tag"></span><h2>C盘空间监控</h2></div></div>
-    <div class="kpi-grid">
-      <div class="kpi-card ${freeGB!=null&&prevFree!=null?(deltaCls==='pos'?'up':'down'):''}"><div class="kpi-label">可用空间</div><div class="kpi-value">${freeGB!=null?freeGB.toFixed(1):'—'}<span class="unit">GB</span></div><span class="kpi-delta ${deltaCls}">${fmtDelta(freeGB,prevFree,'GB',true)}</span></div>
-      <div class="kpi-card ${pct!=null&&pct>90?'warn':''}"><div class="kpi-label">空间占用率</div><div class="kpi-value">${pct!=null?pct.toFixed(1):'—'}<span class="unit">%</span></div><span class="kpi-delta">${u.total_bytes!=null?'总容量 '+fmtMB(u.total_bytes):''}</span></div>
-      <div class="kpi-card"><div class="kpi-label">可释放空间合计</div><div class="kpi-value">${fmtMB(reclaimable)}</div><span class="kpi-delta">${sugg.length} 条清理建议</span></div>
-      <div class="kpi-card"><div class="kpi-label">最大占用分类</div><div class="kpi-value" style="font-size:17px;">${topCat?escapeHtml(topCat.name):'—'}</div><span class="kpi-delta">${topCat?fmtMB(topCat.size_bytes):''}</span></div>
-    </div>
-    <div class="chart-row"><div class="chart-box"><h4>可用空间 · 每周趋势</h4><div id="chart-disk-trend" class="chart"></div><div class="chart-fallback"></div></div></div>
-    <div class="chart-row"><div class="chart-box"><h4>分类占用明细（${cur.week_label}）</h4><div class="table-wrap"><table class="data-table"><thead><tr><th>分类</th><th>路径</th><th>占用</th><th>文件数</th><th>状态</th></tr></thead><tbody>${catRows}</tbody></table></div></div></div>
-    <div class="chart-row"><div class="chart-box"><h4>清理建议（${cur.week_label}）· 只读建议，请确认后手动执行</h4><div class="table-wrap"><table class="data-table"><thead><tr><th>项目</th><th>预估释放</th><th>风险</th><th>说明</th><th>清理命令</th></tr></thead><tbody>${suggRows}</tbody></table></div></div></div>
-    ${topHtml}
-  </section>`;
-}
-function drawDiskCharts(){
-  const d=getDisk();const weeks=(d&&d.weeks)||[];if(!weeks.length)return;
-  const c=safeChart('chart-disk-trend','disk-trend');if(!c)return;
-  const labels=weeks.map(w=>w.week_label);
-  const free=weeks.map(w=>{const u=w.disk_usage||{};return u.free_bytes!=null?+(u.free_bytes/1073741824).toFixed(2):null;});
-  const pct=weeks.map(w=>{const u=w.disk_usage||{};return u.used_pct!=null?+(u.used_pct*100).toFixed(1):null;});
-  safeSetOption(c,{
-    tooltip:{trigger:'axis'},legend:{top:0,right:0,textStyle:{color:C.text2,fontSize:11}},
-    grid:baseGrid(),
-    xAxis:{type:'category',data:labels,boundaryGap:false,axisLabel:{color:C.text2}},
-    yAxis:[
-      {type:'value',name:'可用(GB)',axisLabel:{color:C.text2}},
-      {type:'value',name:'占用率%',min:0,max:100,axisLabel:{color:C.text2},splitLine:{show:false}}
-    ],
-    series:[
-      {name:'可用空间(GB)',type:'line',smooth:true,data:free,itemStyle:{color:C.up},lineStyle:{color:C.up},areaStyle:{color:'rgba(5,150,105,.08)'}},
-      {name:'占用率(%)',type:'line',yAxisIndex:1,smooth:true,data:pct,itemStyle:{color:C.warn},lineStyle:{color:C.warn,type:'dashed'}}
-    ]
-  },'chart-disk-trend');
-}
 
 function exportData(){if(!window.WEEKLY_DATA){toast('无数据可导出','warn');return;}const b=new Blob([JSON.stringify(window.WEEKLY_DATA,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='weekly_data_'+new Date().toISOString().slice(0,10)+'.json';a.click();toast('已导出');}
 function exportChartsPng(){const cList=Object.values(chartInstances).filter(c=>c&&!c.isDisposed());if(!cList.length){toast('无图表可导出','warn');return;}toast('导出中...','info');cList.forEach((c,i)=>{setTimeout(()=>{const u=c.getDataURL({type:'png',pixelRatio:2,backgroundColor:'#fff'});const a=document.createElement('a');a.href=u;a.download='chart_'+i+'.png';a.click();},i*300);});}
