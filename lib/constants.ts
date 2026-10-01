@@ -13,6 +13,7 @@ export const NAV_LINKS: NavItem[] = [
   { label: "首页", href: "/" },
   { label: "IPO进化", href: "/ipo" },
   { label: "周报看板", href: "/dashboard/weekly.html" },
+  { label: "四系统", href: "/dashboard/ticktick.html" },
   { label: "关于", href: "/about" },
   { label: "博客", href: "/blog" },
   { label: "资源", href: "/resources" },
