@@ -130,6 +130,12 @@ a{color:var(--c-primary);text-decoration:none}
 .kpi-delta.neg{color:var(--c-down)}
 .kpi-delta.flat{color:var(--c-text3)}
 .kpi-note{font-size:11px;color:var(--c-text3);margin-top:4px}
+/* 总览 KPI 三列分组（产出与效率 / 风险与逾期 / 存量与收件箱） */
+.ov-cols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.ov-col{min-width:0;display:flex;flex-direction:column;gap:10px}
+.ov-col-head{font-size:12px;font-weight:700;color:var(--c-text2);padding-left:8px;border-left:4px solid var(--c-border)}
+.ov-col .kpi-grid{grid-template-columns:1fr}
+@media(max-width:900px){.ov-cols{grid-template-columns:1fr}}
 /* ===== 系统卡 ===== */
 .sys-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
 .sys-card{border:1px solid var(--c-border);border-left:4px solid var(--c-border);border-radius:var(--radius);padding:16px;background:#fff;cursor:pointer;transition:box-shadow .15s}
@@ -258,7 +264,11 @@ a{color:var(--c-primary);text-decoration:none}
         <span class="section-title">本周总览</span>
         <span class="section-sub" id="overviewSub"></span>
       </div>
-      <div class="kpi-grid" id="kpiGrid"></div>
+      <div class="ov-cols" id="kpiGrid"></div>
+      <div class="chart-row c11" style="margin-top:14px">
+        <div class="chart-box"><div class="chart-h">本周完成环比 · 近 8 周（虚线=中位基线，不含进行中周）</div><div id="chWowComp" class="chart" style="height:240px"></div></div>
+        <div class="chart-box"><div class="chart-h">负载完成率 × 按时完成率 · 近 8 周环比（末段虚线=进行中周）</div><div id="chRateCombo" class="chart" style="height:240px"></div></div>
+      </div>
     </section>
 
     <!-- 2. 四系统卡片 -->
@@ -444,7 +454,7 @@ function weekStartOf(dateStr){
 /* ================= 渲染：KPI ================= */
 function renderKPI(){
   var w = focusWeekObj(), p = prevWeekObj();
-  $('overviewSub').textContent = weekLabel(w) + (w.current?'（本周，进行中）':'') + ' · 完成率=该周截止任务中已完成比例（负载口径）';
+  $('overviewSub').textContent = weekLabel(w) + (w.current?'（本周，进行中）':'') + ' · 完成率=该周截止任务中已完成比例（负载口径）· 下方折线末段虚线=进行中周';
   function tot(wo, key){ if(!wo) return null; var t=0; SYSTEMS.forEach(function(s){ t+=wo.per_system[s][key]; }); return t; }
   var comp = tot(w,'completed'), compP = tot(p,'completed');
   var due = tot(w,'due'), dueC = tot(w,'dueCompleted');
@@ -454,21 +464,117 @@ function renderKPI(){
   var snap = D.snapshot.by_system;
   var overdue=0, highUndone=0, legacy=0, stale60=0;
   SYSTEMS.forEach(function(s){ overdue+=snap[s].overdue; highUndone+=snap[s].highUndone; legacy+=snap[s].legacy; stale60+=snap[s].stale60; });
-  var cards = [
-    {label:'本周完成', value:comp, unit:'条', delta:deltaTxt(comp, compP)},
-    {label:'负载完成率', value:fmtPct(rate), unit:'', delta:deltaTxt(rate, rateP, true), note:'截止在本周的任务 '+dueC+'/'+due},
-    {label:'按时完成率', value:fmtPct(onRate), unit:'', delta:deltaTxt(onRate, onRateP, true), note:'按时 '+onT+' / 延迟 '+late+'（有截止的完成）'},
-    {label:'当前逾期', value:overdue, unit:'条', delta:'<span class="kpi-delta flat">快照</span>', note:'历史逾期趋势不可重建'},
-    {label:'高优未完成', value:highUndone, unit:'条', delta:'<span class="kpi-delta flat">快照</span>', note:'优先级=高 且未完成'},
-    {label:'跨周遗留', value:legacy, unit:'条', delta:'<span class="kpi-delta flat">快照</span>', note:'截止早于本周一仍未完成'},
-    {label:'积压(>60天)', value:stale60, unit:'条', delta:'<span class="kpi-delta flat">快照</span>', note:'创建超 60 天未完成'},
-    {label:'待归类', value:snap['待归类'].undone, unit:'条', delta:'<span class="kpi-delta flat">收件箱</span>', note:'未进入四系统的任务'}
-  ];
-  $('kpiGrid').innerHTML = cards.map(function(c){
+  var cardHtml = function(c){
     return '<div class="kpi-card"><div class="kpi-label">'+c.label+'</div>'
       +'<div class="kpi-value">'+c.value+'<span class="unit"> '+c.unit+'</span></div>'
       +(c.delta||'')+(c.note?'<div class="kpi-note">'+c.note+'</div>':'')+'</div>';
+  };
+  var groups = [
+    {name:'产出与效率', color:'#2251FF', cards:[
+      {label:'本周完成', value:comp, unit:'条', delta:deltaTxt(comp, compP)},
+      {label:'负载完成率', value:fmtPct(rate), unit:'', delta:deltaTxt(rate, rateP, true), note:'截止在本周的任务 '+dueC+'/'+due},
+      {label:'按时完成率', value:fmtPct(onRate), unit:'', delta:deltaTxt(onRate, onRateP, true), note:'按时 '+onT+' / 延迟 '+late+'（有截止的完成）'}
+    ]},
+    {name:'风险与逾期', color:'#DC2626', cards:[
+      {label:'当前逾期', value:overdue, unit:'条', delta:'<span class="kpi-delta flat">快照</span>', note:'历史逾期趋势不可重建'},
+      {label:'高优未完成', value:highUndone, unit:'条', delta:'<span class="kpi-delta flat">快照</span>', note:'优先级=高 且未完成'},
+      {label:'跨周遗留', value:legacy, unit:'条', delta:'<span class="kpi-delta flat">快照</span>', note:'截止早于本周一仍未完成'}
+    ]},
+    {name:'存量与收件箱', color:'#6F7D8C', cards:[
+      {label:'积压(>60天)', value:stale60, unit:'条', delta:'<span class="kpi-delta flat">快照</span>', note:'创建超 60 天未完成'},
+      {label:'待归类', value:snap['待归类'].undone, unit:'条', delta:'<span class="kpi-delta flat">收件箱</span>', note:'未进入四系统的任务'}
+    ]}
+  ];
+  $('kpiGrid').innerHTML = groups.map(function(g){
+    return '<div class="ov-col"><div class="ov-col-head" style="border-left-color:'+g.color+'">'+g.name+'</div>'
+      +'<div class="kpi-grid">'+g.cards.map(cardHtml).join('')+'</div></div>';
   }).join('');
+}
+
+/* ================= 渲染：总览环比图 ================= */
+function lastNWeeks(n){
+  var i = D.weekly.findIndex(function(w){ return w.week_start === state.focusWeek; });
+  if(i<0) i = D.weekly.length-1;
+  return D.weekly.slice(Math.max(0, i-n+1), i+1);
+}
+function medianOf(arr){
+  var a = arr.filter(function(v){ return v!=null; }).slice().sort(function(x,y){ return x-y; });
+  if(!a.length) return null;
+  var m = Math.floor(a.length/2);
+  return a.length%2 ? a[m] : (a[m-1]+a[m])/2;
+}
+function splitDash(vals){
+  /* 末段虚线：返回 [实线数据, 虚线数据]，两组各补一个衔接点（n-2），折线才不断 */
+  var solid = vals.slice(), dash = vals.map(function(){ return null; });
+  if(vals.length>1){
+    solid[vals.length-1] = null;
+    dash[vals.length-2] = vals[vals.length-2];
+    dash[vals.length-1] = vals[vals.length-1];
+  }
+  return [solid, dash];
+}
+function renderOverviewCharts(){
+  var ws = lastNWeeks(8);
+  function sumKey(w, k){ var t=0; SYSTEMS.forEach(function(s){ t+=w.per_system[s][k]; }); return t; }
+  var comps = ws.map(function(w){ return sumKey(w,'completed'); });
+  var rateS = ws.map(function(w){ var r=pct(sumKey(w,'dueCompleted'), sumKey(w,'due')); return r==null?null:+r.toFixed(1); });
+  var onS = ws.map(function(w){ var r=pct(sumKey(w,'onTime'), sumKey(w,'onTime')+sumKey(w,'late')); return r==null?null:+r.toFixed(1); });
+  var labels = ws.map(function(w){ return 'W'+w.iso_week; });
+  var curIdx = comps.length-1;
+  // 图1：本周完成环比（近 8 周柱状，焦点周高亮，中位基线只取完整周）
+  var c1 = getChart('chWowComp');
+  if(c1){
+    var med = medianOf(comps.slice(0,-1));
+    c1.setOption({
+      tooltip:{trigger:'axis',formatter:function(ps){
+        var i = ps[0].dataIndex, wk = ws[i];
+        var lines = [weekLabel(wk)+(wk.current?'（进行中）':'')];
+        var v = comps[i], pv = i>0? comps[i-1] : null;
+        lines.push(ps[0].marker+'完成 '+v+' 条');
+        if(pv!=null) lines.push('环比 '+(v-pv>=0?'+':'')+(v-pv)+' 条');
+        return lines.join('<br>');
+      }},
+      grid:{left:8,right:16,top:30,bottom:8,containLabel:true},
+      xAxis:{type:'category',data:labels,axisLabel:{fontSize:11}},
+      yAxis:{type:'value',name:'完成数'},
+      series:[{type:'bar',barMaxWidth:26,name:'完成数',
+        itemStyle:{borderRadius:[3,3,0,0]},
+        data:comps.map(function(v,i){ return {value:v, itemStyle:{color: i===curIdx?'#2251FF':'#CBD5DD'}}; }),
+        markLine: med==null?undefined:{silent:true,symbol:'none',
+          lineStyle:{type:'dashed',color:'#6F7D8C'},
+          label:{formatter:'中位 '+med,position:'insideEndTop',fontSize:10,color:'#6F7D8C'},
+          data:[{yAxis:med}]}
+      }]
+    });
+  }
+  // 图2：负载完成率 × 按时完成率（双系列组合环比，两个都是 0-100% 同轴）
+  var c2 = getChart('chRateCombo');
+  if(c2){
+    var lds = splitDash(rateS), ons = splitDash(onS);
+    c2.setOption({
+      tooltip:{trigger:'axis',formatter:function(ps){
+        var i = ps[0].dataIndex, wk = ws[i];
+        var lines = [weekLabel(wk)+(wk.current?'（进行中）':'')];
+        var seen = {};
+        ps.forEach(function(x){
+          if(x.value==null || seen[x.seriesName]) return;
+          seen[x.seriesName] = 1;
+          lines.push(x.marker+x.seriesName+': '+x.value+'%');
+        });
+        return lines.join('<br>');
+      }},
+      legend:{bottom:0,data:['负载完成率','按时完成率']},
+      grid:{left:8,right:16,top:30,bottom:40,containLabel:true},
+      xAxis:{type:'category',data:labels,axisLabel:{fontSize:11}},
+      yAxis:{type:'value',min:0,max:100,axisLabel:{formatter:'{value}%'}},
+      series:[
+        {name:'负载完成率',type:'line',smooth:true,symbolSize:5,itemStyle:{color:'#2251FF'},lineStyle:{width:2,color:'#2251FF'},data:lds[0]},
+        {name:'负载完成率',type:'line',smooth:true,symbol:'none',lineStyle:{width:2,color:'#2251FF',type:'dashed'},data:lds[1]},
+        {name:'按时完成率',type:'line',smooth:true,symbolSize:5,itemStyle:{color:'#D97706'},lineStyle:{width:2,color:'#D97706'},data:ons[0]},
+        {name:'按时完成率',type:'line',smooth:true,symbol:'none',lineStyle:{width:2,color:'#D97706',type:'dashed'},data:ons[1]}
+      ]
+    });
+  }
 }
 
 /* ================= 渲染：系统卡 ================= */
@@ -881,7 +987,7 @@ function showErr(msg){
 }
 function renderAll(){
   renderFocusSelect(); renderSysChips();
-  renderKPI(); renderSysCards(); renderBalance(); renderDetail();
+  renderKPI(); renderOverviewCharts(); renderSysCards(); renderBalance(); renderDetail();
   renderAnomaly(); renderReview(); renderMeta();
   Object.keys(charts).forEach(function(k){ if(charts[k] && charts[k].resize) charts[k].resize(); });
 }
