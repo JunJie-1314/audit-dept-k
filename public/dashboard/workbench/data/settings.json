@@ -1,0 +1,1 @@
+{"timezone": "Asia/Shanghai", "workDays": [1, 2, 3, 4, 5], "workStart": "09:00", "workEnd": "18:00", "lunchStart": "12:00", "lunchEnd": "13:00", "bufferMinutes": 15, "minBlockMinutes": 30, "maxBlockMinutes": 90, "idleReserveRatio": 0.2, "autoScheduleEnabled": false, "ticktickDataPath": "../audit-dept-k/public/dashboard/data/ticktick-data.json", "dataRoot": "静态线上版（只读）"}

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+<meta name="robots" content="noindex, nofollow">
+<script>
+/* 轻量口令门：挡普通访客与爬虫（非加密；数据文件本身仍公开可取） */
+(function(){
+  var KEY='kaudit_dashboard_gate';
+  var EXPECT='83b826713c5b4c3275c47c2b91bedcde2cbebb0125327efc7441049cb9f0df8c';
+  function locked(){
+    try{ return !localStorage.getItem(KEY); }catch(e){ return true; }
+  }
+  if(!locked()) return;
+  // 隐藏正文用可移除的 style 标签；覆盖层自身显式可见（visibility 会继承，直接改 body 会连覆盖层一起藏掉）
+  var lockStyle=document.createElement('style');
+  lockStyle.textContent='body{visibility:hidden}';
+  (document.head||document.documentElement).appendChild(lockStyle);
+  function sha256hex(str){
+    return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)).then(function(buf){
+      return Array.prototype.map.call(new Uint8Array(buf), function(b){
+        return ('0'+b.toString(16)).slice(-2);
+      }).join('');
+    });
+  }
+  function init(){
+    if(!document.body){ setTimeout(init, 50); return; }
+    var ov=document.createElement('div');
+    ov.id='kauditGate';
+    ov.style.cssText='position:fixed;inset:0;z-index:99999;background:#0B1220;display:flex;align-items:center;justify-content:center;visibility:visible;';
+    var box=document.createElement('form');
+    box.style.cssText='display:flex;flex-direction:column;gap:12px;align-items:center;padding:24px;';
+    box.innerHTML='<div style="color:#94A3B8;font-size:14px;letter-spacing:.1em">周报看板 · 私密内容</div>'
+      +'<div style="display:flex;gap:8px">'
+      +'<input id="kbGateInput" type="password" placeholder="输入访问口令" autocomplete="current-password" style="padding:10px 14px;border-radius:8px;border:1px solid #334155;background:#151D2E;color:#E2E8F0;font-size:14px;outline:none;width:200px">'
+      +'<button type="submit" style="padding:10px 18px;border-radius:8px;border:0;background:#2251FF;color:#fff;font-size:14px;cursor:pointer">进入</button></div>'
+      +'<div id="kbGateErr" style="color:#F87171;font-size:13px;min-height:18px"></div>';
+    ov.appendChild(box);
+    document.body.appendChild(ov);
+    var inp=document.getElementById('kbGateInput'), err=document.getElementById('kbGateErr');
+    inp.focus();
+    box.addEventListener('submit', function(ev){
+      ev.preventDefault();
+      if(!window.crypto || !crypto.subtle){ err.textContent='浏览器不支持，请换用现代浏览器'; return; }
+      sha256hex(inp.value.trim()).then(function(h){
+        if(h===EXPECT){
+          try{ localStorage.setItem(KEY, '1'); }catch(e){}
+          lockStyle.remove(); ov.remove();
+        } else {
+          err.textContent='口令不正确'; inp.value=''; inp.focus();
+        }
+      });
+    });
+  }
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init); }
+  else{ init(); }
+})();
+</script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>K 的工作台 · LOCAL COMMAND</title>
+    <script>
+      /* 主题预置（防白闪）：先于样式应用夜间模式选择 */
+      try {
+        if (localStorage.getItem('k_workbench_theme') === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch (e) {}
+    </script>
+    <script type="module" crossorigin src="./assets/index-D1fmI0fE.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DSrEb_A7.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
