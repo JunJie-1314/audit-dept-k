@@ -178,7 +178,7 @@
   .project-export-option:hover{background:var(--c-primary-soft);color:var(--c-primary);}
 
   /* 决策摘要 */
-  .decision-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:12px;}
+  .decision-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:12px;}
   .decision-card{border-radius:var(--radius);padding:var(--pad-card);position:relative;overflow:hidden;border:1px solid var(--c-border);}
   .decision-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;}
   .decision-card.win{background:linear-gradient(135deg,#ECFDF5 0%,#FFFFFF 100%);border-color:#A7F3D0;}
@@ -193,6 +193,17 @@
   .decision-card.next .d-label{color:var(--c-accent);}
   .decision-card .d-value{font-size:16px;font-weight:700;color:var(--c-text);line-height:1.5;margin-bottom:2px;}
   .decision-card .d-meta{font-size:11px;color:var(--c-text3);}
+  .sec-toggle{margin-left:auto;border:1px solid var(--c-border);background:#fff;border-radius:8px;padding:4px 12px;font-size:12px;color:var(--c-text2);cursor:pointer;flex-shrink:0;}
+  .sec-toggle:hover{border-color:var(--c-primary);color:var(--c-primary);}
+  .kpi-chev{margin-left:6px;font-size:10px;color:var(--c-text3);transition:transform .15s;display:inline-block;}
+  .kpi-card.expanded .kpi-chev{transform:rotate(180deg);}
+  .kpi-desc{display:none;margin-top:8px;padding-top:8px;border-top:1px dashed var(--c-border);font-size:12px;color:var(--c-text2);line-height:1.7;font-weight:400;}
+  .kpi-card.expanded .kpi-desc{display:block;}
+  .kpi-x{cursor:pointer;}
+  .issue-scroll{max-height:480px;overflow-y:auto;border:1px solid var(--c-border);border-radius:var(--radius);}
+  .issue-scroll thead th{position:sticky;top:0;background:#fff;z-index:1;}
+  .issue-del{border:0;background:transparent;color:var(--c-text3);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:6px;}
+  .issue-del:hover{background:#FEF2F2;color:var(--c-down);}
   .decision-summary{margin-top:4px;padding:12px 16px;background:#F8FAFC;border:1px solid var(--c-border);border-radius:8px;font-size:13px;color:var(--c-text2);line-height:1.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
   /* KPI */
@@ -443,9 +454,12 @@
 
 /** 颜色常量 */
 const C={primary:'#2251FF',accent:'#2251FF',navy:'#051C2C',softBlue:'#A6C8FF',up:'#059669',warn:'#D97706',down:'#DC2626',text:'#051C2C',text2:'#52606D',text3:'#6F7D8C',border:'#DCE4EE',bg:'#FBFCFE'};
-const TOOL_COLORS={cc:'#E5967A',wb:'#15803D',codex:'#111827',claudian:'#D97757',cpahelper:'#107C41',flomo:'#22C55E',obsidian:'#7C3AED',flomoagent:'#22C55E',zcode:'#3859FF'};
-const TOOL_LABELS={cc:'CC',wb:'WorkBuddy',codex:'Codex',claudian:'Claudian',cpahelper:'CPAHelper',flomo:'Flomo',obsidian:'Obsidian',flomoagent:'FlomoAgent',zcode:'ZCode'};
+const TOOL_COLORS={cc:'#E5967A',wb:'#15803D',codex:'#111827',claudian:'#D97757',cpahelper:'#107C41',flomo:'#22C55E',obsidian:'#7C3AED',flomoagent:'#22C55E',zcode:'#3859FF',ticktick_ai:'#4772FA',knomo:'#7C3AED'};
+const TOOL_LABELS={cc:'CC',wb:'WorkBuddy',codex:'Codex',claudian:'Claudian',cpahelper:'CPAHelper',flomo:'Flomo',obsidian:'Obsidian',flomoagent:'FlomoAgent',zcode:'ZCode',ticktick_ai:'滴答清单AI',knomo:'Knomo'};
 const TOOL_ICONS={"zcode": "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"2.5\" y=\"4\" width=\"19\" height=\"16\" rx=\"3\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M6.5 9.5 9.5 12 6.5 14.5\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M12 15h5\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"/></svg>", "claudian": "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z\" fill=\"currentColor\"/></svg>", "cc": "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z\" fill=\"currentColor\"/></svg>", "codex": "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z\" fill=\"currentColor\"/></svg>", "obsidian": "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M19.355 18.538a68.967 68.959 0 0 0 1.858-2.954.81.81 0 0 0-.062-.9c-.516-.685-1.504-2.075-2.042-3.362-.553-1.321-.636-3.375-.64-4.377a1.707 1.707 0 0 0-.358-1.05l-3.198-4.064a3.744 3.744 0 0 1-.076.543c-.106.503-.307 1.004-.536 1.5-.134.29-.29.6-.446.914l-.31.626c-.516 1.068-.997 2.227-1.132 3.59-.124 1.26.046 2.73.815 4.481.128.011.257.025.386.044a6.363 6.363 0 0 1 3.326 1.505c.916.79 1.744 1.922 2.415 3.5zM8.199 22.569c.073.012.146.02.22.02.78.024 2.095.092 3.16.29.87.16 2.593.64 4.01 1.055 1.083.316 2.198-.548 2.355-1.664.114-.814.33-1.735.725-2.58l-.01.005c-.67-1.87-1.522-3.078-2.416-3.849a5.295 5.295 0 0 0-2.778-1.257c-1.54-.216-2.952.19-3.84.45.532 2.218.368 4.829-1.425 7.531zM5.533 9.938c-.023.1-.056.197-.098.29L2.82 16.059a1.602 1.602 0 0 0 .313 1.772l4.116 4.24c2.103-3.101 1.796-6.02.836-8.3-.728-1.73-1.832-3.081-2.55-3.831zM9.32 14.01c.615-.183 1.606-.465 2.745-.534-.683-1.725-.848-3.233-.716-4.577.154-1.552.7-2.847 1.235-3.95.113-.235.223-.454.328-.664.149-.297.288-.577.419-.86.217-.47.379-.885.46-1.27.08-.38.08-.72-.014-1.043-.095-.325-.297-.675-.68-1.06a1.6 1.6 0 0 0-1.475.36l-4.95 4.452a1.602 1.602 0 0 0-.513.952l-.427 2.83c.672.59 2.328 2.316 3.335 4.711.09.21.175.43.253.653z\" fill=\"currentColor\"/></svg>", "cpahelper": "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M23 1.5q.41 0 .7.3.3.29.3.7v19q0 .41-.3.7-.29.3-.7.3H7q-.41 0-.7-.3-.3-.29-.3-.7V18H1q-.41 0-.7-.3-.3-.29-.3-.7V7q0-.41.3-.7Q.58 6 1 6h5V2.5q0-.41.3-.7.29-.3.7-.3zM6 13.28l1.42 2.66h2.14l-2.38-3.87 2.34-3.8H7.46l-1.3 2.4-.05.08-.04.09-.64-1.28-.66-1.29H2.59l2.27 3.82-2.48 3.85h2.16zM14.25 21v-3H7.5v3zm0-4.5v-3.75H12v3.75zm0-5.25V7.5H12v3.75zm0-5.25V3H7.5v3zm8.25 15v-3h-6.75v3zm0-4.5v-3.75h-6.75v3.75zm0-5.25V7.5h-6.75v3.75zm0-5.25V3h-6.75v3Z\" fill=\"currentColor\"/></svg>", "flomo": "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5\" fill=\"currentColor\"/><path d=\"M15 7.8h-1.9c-1.8 0-3 1.2-3 3V17\" stroke=\"#FFFFFF\" stroke-width=\"2.1\" stroke-linecap=\"round\" fill=\"none\"/><path d=\"M8.6 12h5.2\" stroke=\"#FFFFFF\" stroke-width=\"2.1\" stroke-linecap=\"round\" fill=\"none\"/></svg>", "flomoagent": "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5\" fill=\"currentColor\"/><path d=\"M15 7.8h-1.9c-1.8 0-3 1.2-3 3V17\" stroke=\"#FFFFFF\" stroke-width=\"2.1\" stroke-linecap=\"round\" fill=\"none\"/><path d=\"M8.6 12h5.2\" stroke=\"#FFFFFF\" stroke-width=\"2.1\" stroke-linecap=\"round\" fill=\"none\"/></svg>", "wb": "<svg viewBox=\"0 0 130 130\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_283_481)\">\n<rect width=\"130\" height=\"130\" rx=\"28.0526\" fill=\"url(#paint0_linear_283_481)\"/>\n<g filter=\"url(#filter0_f_283_481)\">\n<circle cx=\"108.36\" cy=\"141.759\" r=\"41.8289\" fill=\"#FFE355\" fill-opacity=\"0.49\" style=\"fill:#FFE355;fill:color(display-p3 1.0000 0.8891 0.3348);fill-opacity:0.49;\"/>\n</g>\n<path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M99.4282 10.1638C100.703 9.02064 100.78 8.97669 101.714 8.92058C103.229 8.80992 104.616 9.53654 106.977 11.6861C112.493 16.6987 120.175 27.0043 124.95 35.8049L126.795 39.2201L129.401 40.5162C131.917 41.7875 136.044 44.394 137.767 45.7919C138.547 46.4365 138.657 46.4497 139.467 46.1344C143.125 44.7098 148.365 46.5984 152.987 51.0325C157.148 55.0201 161.133 61.833 162.659 67.5195C162.882 68.4346 163.178 70.4028 163.286 71.8681C163.634 77.013 161.984 81.1226 158.806 82.9826C158.158 83.3572 158.115 83.4591 158.133 85.0776C158.279 92.7829 156.202 100.474 152.03 107.974C147.32 116.396 138.933 125.107 127.583 133.315C121.488 137.751 107.067 146.153 100.547 149.102C84.9287 156.134 72.4081 158.831 61.5321 157.498C55.0448 156.712 47.7017 154.18 43.357 151.241C42.2133 150.45 42.0324 150.402 41.1585 150.652C36.5074 151.988 30.4158 149.242 25.241 143.498C23.177 141.202 19.8464 135.564 18.7664 132.547C16.2684 125.487 16.7648 119.115 20.0922 115.31C20.952 114.33 20.9796 114.289 20.7918 112.641C20.4817 109.943 20.3406 105.951 20.4823 103.375L20.5947 100.968L16.9813 94.5763C11.3858 84.6202 7.8314 76.2603 6.46025 69.8729C5.7364 66.3704 5.78144 64.8166 6.67051 63.6668C7.21161 62.9725 8.98625 62.2531 11.1257 61.858C16.5115 60.9125 28.2577 61.7685 41.3255 64.0757L42.6832 64.3101L45.6662 61.6722C50.6181 57.2859 53.9074 54.8262 59.9722 51.0446C66.2933 47.0897 73.4271 43.8362 81.4607 41.26L84.0384 40.4337L85.4554 36.7142C90.5286 23.3221 95.7238 13.4483 99.4282 10.1638ZM56.9346 78.7893C51.2012 82.0995 48.3345 83.7553 46.228 85.6101C37.6975 93.1218 34.5094 105.02 38.1411 115.791C39.038 118.45 40.6927 121.318 44.0029 127.051C47.3132 132.785 48.9688 135.651 50.8238 137.758C58.3355 146.288 70.2338 149.476 81.0044 145.845C83.664 144.948 86.5308 143.292 92.2642 139.982L125.248 120.939C130.981 117.629 133.848 115.974 135.955 114.119C144.485 106.607 147.673 94.7089 144.042 83.9384C143.145 81.2787 141.489 78.412 138.179 72.6785C134.869 66.9451 133.214 64.078 131.359 61.9714C123.847 53.4409 111.949 50.2528 101.178 53.8845C98.5186 54.7814 95.6515 56.4361 89.918 59.7463L56.9346 78.7893Z\" fill=\"url(#paint1_linear_283_481)\"/>\n<rect x=\"60.1133\" y=\"101.836\" width=\"13.0294\" height=\"27.061\" rx=\"6.51468\" transform=\"rotate(-30 60.1133 101.836)\" fill=\"white\" style=\"fill:white;fill-opacity:1;\"/>\n<rect x=\"95.2666\" y=\"81.54\" width=\"13.0294\" height=\"27.061\" rx=\"6.51468\" transform=\"rotate(-30 95.2666 81.54)\" fill=\"white\" style=\"fill:white;fill-opacity:1;\"/>\n</g>\n<defs>\n<filter id=\"filter0_f_283_481\" x=\"30.78\" y=\"64.179\" width=\"155.161\" height=\"155.16\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"17.8756\" result=\"effect1_foregroundBlur_283_481\"/>\n</filter>\n<linearGradient id=\"paint0_linear_283_481\" x1=\"65\" y1=\"0\" x2=\"65\" y2=\"130\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"#0EC8A9\" style=\"stop-color:#0EC8A9;stop-color:color(display-p3 0.0565 0.7837 0.6625);stop-opacity:1;\"/>\n<stop offset=\"1\" stop-color=\"#01C886\" style=\"stop-color:#01C886;stop-color:color(display-p3 0.0021 0.7858 0.5246);stop-opacity:1;\"/>\n</linearGradient>\n<linearGradient id=\"paint1_linear_283_481\" x1=\"54.1591\" y1=\"36.0036\" x2=\"114.973\" y2=\"141.337\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"white\" stop-opacity=\"0.8\" style=\"stop-color:white;stop-opacity:0.8;\"/>\n<stop offset=\"0.437689\" stop-color=\"white\" style=\"stop-color:white;stop-opacity:1;\"/>\n</linearGradient>\n<clipPath id=\"clip0_283_481\">\n<rect width=\"130\" height=\"130\" rx=\"28.0526\" fill=\"white\" style=\"fill:white;fill-opacity:1;\"/>\n</clipPath>\n</defs>\n</svg>\n"};
+/* 滴答清单AI（官方蓝 #4772FA，对勾图标）与 Knomo（Obsidian 插件，复用 Obsidian 图标） */
+TOOL_ICONS.ticktick_ai='<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="18" height="18" rx="5" fill="currentColor"/><path d="M8 12.3l2.7 2.7L16.2 9.4" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+TOOL_ICONS.knomo=TOOL_ICONS.obsidian;
 const JUNTAO_COLORS={navy:'#051C2C',blue:'#2251FF',softBlue:'#A6C8FF',heatLow:'#F2F6FF',positive:'#059669',negative:'#DC2626'};
 const JUNTAO_SOURCE_LABELS={ticktick:'TickTick',ai_sessions:'AI 会话',obsidian:'Obsidian',flomo:'Flomo',issues:'问题追踪'};
 const JUNTAO_SOURCE_COLORS={ticktick:'#2251FF',ai_sessions:'#A6C8FF',obsidian:'#7C3AED',flomo:'#22C55E',issues:'#DC2626'};
@@ -454,22 +468,15 @@ const MODULES=[
   {id:'decision',name:'本周决策摘要',num:1},
   {id:'overview',name:'核心指标',num:2},
   {id:'issues',name:'风险与问题追踪',num:3},
-  {id:'trend',name:'工作量趋势',num:4},
-  {id:'tools',name:'工具协同分析',num:5},
-  {id:'content',name:'内容与知识沉淀',num:6},
-  {id:'kiss',name:'KISS复盘',num:7},
-  {id:'summary',name:'AI综合点评',num:8},
-  {id:'juntao',name:'项目进展',num:9},
-  {id:'treasured',name:'珍藏笔记',num:10},
+  {id:'tools',name:'工具协同分析',num:4},
+  {id:'content',name:'内容与知识沉淀',num:5},
+  {id:'kiss',name:'KISS复盘',num:6},
+  {id:'summary',name:'AI综合点评',num:7},
+  {id:'juntao',name:'项目进展',num:8},
+  {id:'treasured',name:'珍藏笔记',num:9},
 ];
 /** 指标切换定义 */
-const TREND_METRICS=[
-  {key:'total',label:'总工作量',unit:'次',desc:'各AI工具会话总数',color:C.primary},
-  {key:'output',label:'有效产出',unit:'项',desc:'CPAHelper 完成任务数',color:C.up},
-  {key:'knowledge',label:'知识沉淀',unit:'篇/条',desc:'Obsidian新建笔记 + Flomo闪念',color:C.accent},
-  {key:'issues',label:'遗留问题',unit:'项',desc:'本周遗留尾巴问题数',color:C.warn},
-];
-let STATE={curIdx:-1,cmpIdx:-1,trendMetric:'total',projectSel:'juntao'};
+let STATE={curIdx:-1,cmpIdx:-1,projectSel:'juntao'};
 
 /* ============ 工具函数 ============ */
 /** @returns {number|string} 格式化数字 */
@@ -486,7 +493,46 @@ function toast(msg,type){const w=document.getElementById('toastWrap');const e=do
 function baseGrid(){return{left:50,right:24,top:40,bottom:36,containLabel:true};}
 function $(id){return document.getElementById(id);}
 function getWeeks(){return(window.WEEKLY_DATA&&window.WEEKLY_DATA.weeks)||[];}
-function getIssueTracking(){return(window.WEEKLY_DATA&&window.WEEKLY_DATA.issue_tracking)||[];}
+/* ---- 问题追踪动态状态层：源数据只读，用户的状态标记/移除持久化在 localStorage ---- */
+const LS_ISSUE_STATE='weekly_issue_state_v1';
+/** @returns {object} {问题文本: {status?, dismissed?, dismissed_at?}} */
+function loadIssueState(){
+  try{return JSON.parse(localStorage.getItem(LS_ISSUE_STATE)||'{}')||{};}catch(e){return{};}
+}
+function saveIssueState(s){try{localStorage.setItem(LS_ISSUE_STATE,JSON.stringify(s));}catch(e){}}
+/** @returns {string} 问题唯一键（按文本归一化，跨周稳定） */
+function issueKey(item){return String(item==null?'':item).replace(/\s+/g,' ').trim();}
+/** 原始追踪列表（不含用户覆盖，供「已隐藏」计数用） */
+function getRawIssueTracking(){return(window.WEEKLY_DATA&&window.WEEKLY_DATA.issue_tracking)||[];}
+/** 合并覆盖层后的追踪列表：dismissed 的条目被移除，status 被用户标记覆盖 */
+function getIssueTracking(){
+  const st=loadIssueState();
+  return getRawIssueTracking().map(t=>{
+    const o=st[issueKey(t.item)]||{};
+    if(o.dismissed)return null;
+    return o.status?Object.assign({},t,{status:o.status}):t;
+  }).filter(Boolean);
+}
+/** 切换问题状态：已解决 ↔ 待处理（本地持久化，源数据不变） */
+function toggleIssueStatus(item){
+  const k=issueKey(item),s=loadIssueState(),o=s[k]||{};
+  const next=o.status==='已解决'?'待处理':'已解决';
+  s[k]=Object.assign({},o,{status:next});
+  saveIssueState(s);renderAll();
+  toast(next==='已解决'?'已标记为已解决':'已改回待处理','success');
+}
+/** 移除已完成/不想再看到的问题条目（本地持久化） */
+function dismissIssue(item){
+  const k=issueKey(item),s=loadIssueState();
+  s[k]=Object.assign({},s[k]||{},{dismissed:true,dismissed_at:new Date().toISOString()});
+  saveIssueState(s);renderAll();
+  toast('已移除该问题条目（本地保存）','success');
+}
+/** 清空全部本地状态标记，恢复源数据显示 */
+function restoreIssues(){
+  try{localStorage.removeItem(LS_ISSUE_STATE);}catch(e){}
+  renderAll();toast('已恢复全部问题条目','success');
+}
 
 /**
  * 获取一周的军陶 IPO 项目数据，并为旧版 JSON 补齐稳定空结构。
@@ -494,13 +540,15 @@ function getIssueTracking(){return(window.WEEKLY_DATA&&window.WEEKLY_DATA.issue_
  * @returns {object} 完整的军陶 IPO 项目对象
  */
 function getJuntaoProject(week){
+  const id=STATE.projectSel||'juntao';
+  const emptyName=(getProjectTabs().find(p=>p.id===id)||{}).name||'当前项目';
   const empty={
-    project_name:'军陶 IPO 审计实习',color:null,matched:false,achievements:[],risks:[],insights:[],next_actions:[],dynamics:[],evidence:[],
+    project_name:emptyName,color:null,matched:false,achievements:[],risks:[],insights:[],next_actions:[],dynamics:[],evidence:[],
     source_counts:{ticktick:0,ai_sessions:0,obsidian:0,flomo:0,issues:0},
   };
-  const id=STATE.projectSel||'juntao';
   const ps=week&&week.projects;
-  const project=(ps&&(ps[id]||ps.juntao_ipo))||null;
+  // 仅 juntao 兼容旧 JSON 的 juntao_ipo 键；其余项目未匹配就返回空结构（不串数据）
+  const project=ps?(ps[id]||(id==='juntao'?ps.juntao_ipo:null)):null;
   if(!project||typeof project!=='object')return empty;
   const evidence=Array.isArray(project.evidence)?project.evidence:[];
   const rawCounts=project.source_counts&&typeof project.source_counts==='object'&&!Array.isArray(project.source_counts)?project.source_counts:{};
@@ -648,8 +696,8 @@ function renderAll(){
   if(!cur)return;
   $('periodSummary').innerHTML=`当前 ${cur.week_label} vs ${cmp?cmp.week_label:'—'} · 共${weeks.length}周`;
   const main=$('mainContent');
-  main.innerHTML=renderDecision(cur,cmp)+renderOverview(cur,cmp)+renderIssues()+renderTrend()+renderTools(cur,cmp)+renderContent(cur,cmp)+renderKiss(cur,cmp)+renderSummary(cur,cmp)+renderJuntao(cur)+renderTreasured();
-  setTimeout(()=>{drawDecisionCharts(cur,cmp);drawOverviewCharts(cur,cmp);drawIssuesCharts();drawTrendCharts();drawToolsCharts(cur,cmp);drawContentCharts(cur,cmp);drawJuntaoCharts();},80);
+  main.innerHTML=renderDecision(cur,cmp)+renderOverview(cur,cmp)+renderIssues()+renderTools(cur,cmp)+renderContent(cur,cmp)+renderKiss(cur,cmp)+renderSummary(cur,cmp)+renderJuntao(cur)+renderTreasured();
+  setTimeout(()=>{drawDecisionCharts(cur,cmp);drawOverviewCharts(cur,cmp);drawIssuesCharts();drawToolsCharts(cur,cmp);drawContentCharts(cur,cmp);drawJuntaoCharts();},80);
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   const fn=document.querySelector('.nav-item');if(fn)fn.classList.add('active');
   if(window.__attachReadingTracker)window.__attachReadingTracker();
@@ -661,27 +709,42 @@ function renderDecision(cur,cmp){
   const issueTrack=getIssueTracking();
   const longIssues=issueTrack.filter(t=>t.week_count>=3&&(t.status==='待处理'||t.status==='新发现'));
   const pending=issueTrack.filter(t=>t.status==='待处理').sort((a,b)=>(b.urgency==='高'?3:b.urgency==='中'?2:1)-(a.urgency==='高'?3:a.urgency==='中'?2:1));
-  // 最大成果：取第一个 success callout 的 text（截取第一句）
+  // 最大成果：取第一个 success callout 的 text（卡片只显示第一句；完整信息走折叠块）
   const successText=callouts.filter(c=>c.type==='success').map(c=>c.text)[0]||cur.obsidian_topics[0]||'—';
   const achieve=successText.split(/[。.]/)[0].slice(0,60)||successText.slice(0,60);
   // 最大风险
   const topRisk=pending[0]||longIssues[0];
   const riskText=topRisk?topRisk.item:(cur.issues[0]?cur.issues[0].item:'—');
-  // 下周第一优先级
-  const kissStart=(cur.kiss||{}).start||'';
-  const nextPriority=kissStart?kissStart.split(/[；;]/)[0].slice(0,50):(pending.length?pending[0].item:'—');
   // 综合判断（summary callout 限80字）
   const summaryText=callouts.filter(c=>c.type==='summary').map(c=>c.text).join(' ').slice(0,120)||'本周正常运转。';
+  // 完整信息（折叠块内不截断）
+  const fullSuccess=callouts.filter(c=>c.type==='success').map(c=>(c.title?c.title+'：':'')+c.text).join('\n')||'—';
+  const fullRisk=[...new Set([topRisk?topRisk.item:null,cur.issues.map(i=>i.item)[0]].filter(Boolean))].join('\n')||'—';
 
   return `<section class="section" id="sec-decision">
-    <div class="section-head"><div class="section-title"><span class="tag"></span><h2>本周决策摘要 · ${cur.week_label}（${cur.period_start||'—'} ~ ${cur.period_end||'—'}）</h2></div></div>
+    <div class="section-head"><div class="section-title"><span class="tag"></span><h2>本周决策摘要 · ${cur.week_label}（${cur.period_start||'—'} ~ ${cur.period_end||'—'}）</h2></div>
+      <button type="button" class="sec-toggle" onclick="toggleDecisionMore()">展开完整信息 ▾</button></div>
     <div class="decision-grid">
-      <div class="decision-card win"><div class="d-label">最大成果</div><div class="d-value" title="${mdInline(achieve)}">${mdInline(achieve)}</div></div>
+      <div class="decision-card win"><div class="d-label">最大成果</div><div class="d-value" title="${mdInline(successText)}">${mdInline(achieve)}</div></div>
       <div class="decision-card risk"><div class="d-label">最大风险</div><div class="d-value" title="${mdInline(riskText)}">${mdInline(riskText)}</div></div>
-      <div class="decision-card next"><div class="d-label">下周第一优先级</div><div class="d-value" title="${mdInline(nextPriority)}">${mdInline(nextPriority)}</div></div>
     </div>
     <div class="decision-summary" title="${mdInline(summaryText)}">${mdInline(summaryText)}</div>
+    <div id="decisionMore" class="hidden" style="margin-top:12px;padding:12px 16px;background:#F8FAFC;border:1px dashed var(--c-border);border-radius:8px;font-size:13px;color:var(--c-text2);line-height:1.8;">
+      <div><b style="color:var(--c-up);">最大成果 · 完整版</b><br>${mdInline(fullSuccess)}</div>
+      <div style="margin-top:10px;"><b style="color:var(--c-warn);">最大风险 · 完整版</b><br>${mdInline(fullRisk)}</div>
+      <div style="margin-top:10px;"><b style="color:var(--c-accent);">AI 点评 · 全部结论</b><br>${cs2list(callouts)}</div>
+    </div>
   </section>`;
+}
+function cs2list(callouts){
+  const out=(callouts||[]).map(c=>`<b>[${escapeHtml(c.type)}]</b> ${mdInline((c.title||'')+'：'+c.text)}`).join('<br>');
+  return out||'—';
+}
+function toggleDecisionMore(){
+  const el=document.getElementById('decisionMore');if(!el)return;
+  const show=el.classList.toggle('hidden')===false;
+  const btn=document.querySelector('#sec-decision .sec-toggle');
+  if(btn)btn.textContent=show?'收起完整信息 ▴':'展开完整信息 ▾';
 }
 function drawDecisionCharts(){}
 
@@ -699,24 +762,39 @@ function renderOverview(cur,cmp){
   // 上一周期的long issues（仅对比）
   const cmpLongIss=cmp?cmp.issues.length:null;
 
-  function kpi(label,val,cmpVal,unit,cls,tooltip,reverse){
+  /**
+   * 单张 KPI 卡：默认显示数值与环比，点击整卡展开指标口径说明。
+   * @param {string} label - 指标名
+   * @param {number|null} val - 当前周值
+   * @param {number|null} cmpVal - 对比周值
+   * @param {string} unit - 单位
+   * @param {string} cls - 附加类名
+   * @param {string} desc - 指标口径说明（折叠内容）
+   * @param {boolean} reverse - 反向指标（越低越好）
+   * @returns {string} KPI 卡 HTML
+   */
+  function kpi(label,val,cmpVal,unit,cls,desc,reverse){
     const dCls=deltaClass(val,cmpVal,reverse),dTxt=fmtDelta(val,cmpVal,unit,reverse);
-    return `<div class="kpi-card ${cls}" title="${tooltip}">
-      <div class="kpi-label">${label}<span class="tooltip-trig">?</span></div>
+    return `<div class="kpi-card ${cls} kpi-x" onclick="toggleKpiCard(this)" title="点击展开/收起指标说明">
+      <div class="kpi-label">${label}<span class="tooltip-trig">?</span><span class="kpi-chev">▾</span></div>
       <div class="kpi-value">${val!=null?fmtNum(val):'—'}<span class="unit">${unit||''}</span></div>
       <span class="kpi-delta ${dCls}">${dTxt}</span>
+      <div class="kpi-desc">${desc}<br><span style="color:var(--c-text3);">口径方向：${reverse?'反向指标，越低越好':'正向指标，越高越好'}${cmpVal!=null?' · 对比对象：上一周':' · 暂无对比周'}</span></div>
     </div>`;
   }
   return `<section class="section" id="sec-overview">
-    <div class="section-head"><div class="section-title"><span class="tag"></span><h2>核心指标</h2></div></div>
+    <div class="section-head"><div class="section-title"><span class="tag"></span><h2>核心指标</h2></div><span style="font-size:12px;color:var(--c-text3);">点击卡片展开指标说明</span></div>
     <div class="kpi-grid">
-      ${kpi('有效产出',effOut,cmpEff,'项','up','有效产出 = CPAHelper 完成任务数（反映实际交付的工作项数量）')}
-      ${kpi('计划完成率',planRate!=null?Math.round(planRate*100):null,cmpPlan!=null?Math.round(cmpPlan*100):null,'%','up','计划完成率 = CPAHelper Todo 任务平均完成率')}
-      ${kpi('知识沉淀',knowDep,cmpKnow,'篇/条','up','知识沉淀 = Obsidian 新建笔记 + Flomo 闪念条数')}
-      ${kpi('长期未解决问题',longIss,cmpLongIss,'项','warn','连续3周以上待处理或新发现的问题数',true)}
+      ${kpi('有效产出',effOut,cmpEff,'项','up','有效产出 = CPAHelper 完成任务数（Todo 会话中实际交付的工作项数量），反映当周真实交付量，不含会话数水分。')}
+      ${kpi('计划完成率',planRate!=null?Math.round(planRate*100):null,cmpPlan!=null?Math.round(cmpPlan*100):null,'%','up','计划完成率 = CPAHelper Todo 任务平均完成率，衡量当周计划是否兑现。')}
+      ${kpi('知识沉淀',knowDep,cmpKnow,'篇/条','up','知识沉淀 = Obsidian 新建笔记数 + 闪念笔记数（闪念已从 Flomo 切换为 Obsidian 插件 Knomo，历史周为 Flomo 口径）。')}
+      ${kpi('长期未解决问题',longIss,cmpLongIss,'项','warn','连续 3 周及以上处于「待处理/新发现」的问题数；可在下方「风险与问题追踪」中点击状态徽标标记已解决。',true)}
     </div>
   </section>`;
 }
+/** 切换单张 KPI 卡的说明展开态 */
+function toggleKpiCard(card){card.classList.toggle('expanded');}
+
 function drawOverviewCharts(){}
 
 /* ============ 模块3：风险与问题追踪 ============ */
@@ -730,27 +808,33 @@ function renderIssues(){
   });
   const rows=sorted.map(t=>{
     const sb={待处理:'red',新发现:'blue',已解决:'green',已过期:'gray'}[t.status]||'gray';
-    return `<tr>
-      <td><span class="badge ${sb}">${t.status}</span></td>
+    return `<tr data-item="${escapeHtml(t.item)}">
+      <td><span class="badge ${sb}" style="cursor:pointer;" title="点击切换 待处理↔已解决（本地保存）" onclick="toggleIssueStatus(this.closest('tr').dataset.item)">${t.status}</span></td>
       <td><span class="badge ${t.level}" style="background:${t.level==='red'?'#FEF2F2':t.level==='yellow'?'#FEF3C7':'#D1FAE5'};color:${t.level==='red'?'#DC2626':t.level==='yellow'?'#92400E':'#047857'}">${t.urgency}</span></td>
       <td style="max-width:280px;" title="${mdInline(t.item)}">${mdInline(t.item)}</td>
       <td class="num">${t.week_count}</td>
       <td style="max-width:200px;font-size:12px;color:var(--c-text2);">${mdInline(t.suggestion)||'—'}</td>
+      <td style="text-align:center;"><button type="button" class="issue-del" title="已完成/不再追踪？点击移除（本地保存，可恢复）" onclick="dismissIssue(this.closest('tr').dataset.item)">✕</button></td>
    </tr>`;
   }).join('');
+  const rawAll=getRawIssueTracking();
+  const hiddenCnt=rawAll.length-getIssueTracking().length;
   return `<section class="section" id="sec-issues">
-    <div class="section-head"><div class="section-title"><span class="tag"></span><h2>风险与问题追踪<small style="font-size:12px;color:var(--c-text3);margin-left:8px;">跨周文本匹配 · 自动判定状态</small></h2></div></div>
+    <div class="section-head"><div class="section-title"><span class="tag"></span><h2>风险与问题追踪<small style="font-size:12px;color:var(--c-text3);margin-left:8px;">点击「状态」标记已解决 · 点击 ✕ 移除已完成项（本地保存）</small></h2></div></div>
     <div class="risk-cards">
       <div class="risk-card pending"><div class="rc-num">${cnt.pending}</div><div class="rc-label">待处理</div></div>
       <div class="risk-card new"><div class="rc-num">${cnt.new_}</div><div class="rc-label">新发现</div></div>
       <div class="risk-card old"><div class="rc-num">${cnt.old}</div><div class="rc-label">持续3周以上</div></div>
     </div>
     <div class="chart-row c1"><div class="chart-box"><h4>问题老化分布（柱状图：按持续周数分组）</h4><div id="chart-aging" class="chart xs"></div><div class="chart-fallback"></div></div></div>
-    <div class="table-wrap"><table class="data-table" id="issueTable">
-      <thead><tr><th>状态</th><th>紧迫度</th><th>问题事项</th><th>持续周数</th><th>下一步行动</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="5" style="text-align:center;color:var(--c-text3);">暂无问题记录</td></tr>'}</tbody>
+    <div class="issue-scroll"><table class="data-table" id="issueTable">
+      <thead><tr><th>状态</th><th>紧迫度</th><th>问题事项</th><th>持续周数</th><th>下一步行动</th><th style="width:40px;"></th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="6" style="text-align:center;color:var(--c-text3);">暂无问题记录</td></tr>'}</tbody>
     </table></div>
-    <div style="margin-top:12px;font-size:12px;color:var(--c-text2);">共追踪 <b>${tracks.length}</b> 个问题——排序列：紧迫度优先 → 持续周数多优先。</div>
+    <div style="margin-top:12px;font-size:12px;color:var(--c-text2);display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
+      <span>共追踪 <b>${rawAll.length}</b> 个问题${hiddenCnt?`（已移除 ${hiddenCnt} 条）`:''}——排序列：紧迫度优先 → 持续周数多优先；状态标记只影响本浏览器。</span>
+      ${hiddenCnt?'<button type="button" class="sec-toggle" style="margin-left:0;" onclick="restoreIssues()">恢复已移除条目</button>':''}
+    </div>
   </section>`;
 }
 function drawIssuesCharts(){
@@ -764,49 +848,6 @@ function drawIssuesCharts(){
     series:[{type:'bar',data:['1周以内','2~3周','4周以上'].map(k=>({value:aging[k]||0,itemStyle:{color:k==='4周以上'?C.down:k==='2~3周'?C.warn:C.accent}})),barWidth:'50%',label:{show:true,position:'top',color:C.text2}}],
     color:[C.accent]
   },'chart-aging');
-}
-
-/* ============ 模块4：工作量趋势 ============ */
-/** 渲染支持键盘选择的趋势指标标签。 @returns {string} */
-function renderTrend(){
-  const tabs=TREND_METRICS.map(m=>`<span class="trend-tab${m.key===STATE.trendMetric?' active':''}" role="tab" tabindex="0" aria-selected="${m.key===STATE.trendMetric}" onclick="switchTrend('${m.key}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchTrend('${m.key}')}">${m.label}</span>`).join('');
-  const curMet=TREND_METRICS.find(m=>m.key===STATE.trendMetric)||TREND_METRICS[0];
-  return `<section class="section" id="sec-trend">
-    <div class="section-head"><div class="section-title"><span class="tag"></span><h2 id="trendTitle">工作量趋势分析</h2></div></div>
-    <div class="trend-tabs">${tabs}</div>
-    <div class="chart-box"><h4 id="trendChartTitle">${curMet.label} · 最近N周趋势</h4><div id="chart-trend-main" class="chart lg"></div><div class="chart-fallback"></div></div>
-  </section>`;
-}
-function switchTrend(key){STATE.trendMetric=key;document.querySelectorAll('.trend-tab').forEach(t=>t.classList.toggle('active',t.textContent===TREND_METRICS.find(m=>m.key===key).label));drawTrendCharts();}
-function drawTrendCharts(){
-  const weeks=getTrendWeeks();
-  const mt=STATE.trendMetric;
-  let data,label=TREND_METRICS.find(m=>m.key===mt).label;
-  if(mt==='total')data=weeks.map(w=>{(w.stats.cc||0)+(w.stats.wb||0)+(w.stats.codex||0)+(w.stats.claudian||0)+(w.stats.cpahelper_total||0)});
-  else if(mt==='output')data=weeks.map(w=>w.stats.cpahelper_tasks||0);
-  else if(mt==='knowledge')data=weeks.map(w=>(w.stats.notes_new||0)+(w.stats.flomo_memos||0));
-  else data=weeks.map(w=>w.issues.length);
-
-  // 近四周均值
-  const recent=data.slice(-4);const avg4=recent.length?recent.reduce((a,b)=>a+b,0)/recent.length:0;
-  const curVal=data[data.length-1]||0;
-  const pctChg=avg4?Math.round((curVal-avg4)/Math.abs(avg4)*100):0;
-  const titleEl=$('trendChartTitle');
-  if(titleEl)titleEl.textContent=`${label} · 本周${mt==='total'?'会话数':'值'}${pctChg>0?'较近四周均值提升':pctChg<0?'较近四周均值下降':'与近四周均值持平'} ${Math.abs(pctChg)}%（${fmtNum(curVal)} vs 均值${fmtNum(Math.round(avg4))}）`;
-
-  const c=safeChart('chart-trend-main','trend-main');if(!c)return;
-  const labels=weeks.map(w=>w.week_label);
-  const ci=weeks.length-1;
-  const colors=weeks.map((_,i)=>i===ci?C.accent:C.text3);
-  safeSetOption(c,{
-    tooltip:{trigger:'axis'},grid:baseGrid(),
-    xAxis:{type:'category',data:labels,boundaryGap:false,axisLabel:{color:C.text2}},
-    yAxis:{type:'value',axisLabel:{color:C.text2},name:TREND_METRICS.find(m=>m.key===mt).unit||''},
-    series:[
-      {name:label,type:'line',smooth:true,data:data,itemStyle:{color:C.accent},lineStyle:{color:C.accent}},
-      {name:'近四周均值',type:'line',data:weeks.map((_,i)=>i>=data.length-4?avg4:null),lineStyle:{type:'dashed',color:C.warn,width:2},itemStyle:{color:C.warn},symbol:'none'},
-    ]
-  },'chart-trend-main');
 }
 
 /* ============ 模块5：工具协同 ============ */
@@ -846,11 +887,12 @@ function toolSlotHtml(slot,toolsBarHtml){
   return `<div class="chart-box">${head}<div id="chart-tools-${slot}" class="chart"></div><div class="chart-fallback"></div></div>`;
 }
 function renderTools(cur,cmp){
-  const sTools=['cc','wb','codex','claudian','cpahelper_total'];
+  const sTools=['cc','wb','codex','claudian','cpahelper_total','ticktick_ai'];
   const normKey=k=>k==='cpahelper_total'?'cpahelper':k;
   const curToolVals=sTools.map(k=>cur.stats[k]||0);
   const curTotal=curToolVals.reduce((a,b)=>a+b,0);
-  const toolsBar=sTools.map((k,i)=>({key:normKey(k),name:TOOL_LABELS[normKey(k)],value:curToolVals[i]})).filter(d=>d.value>0);
+  // 滴答清单AI 即使 0 也常显（新工具已启用，等周记 frontmatter 记 ticktick_ai_sessions 后自动亮起）
+  const toolsBar=sTools.map((k,i)=>({key:normKey(k),name:TOOL_LABELS[normKey(k)],value:curToolVals[i]})).filter(d=>d.value>0||d.key==='ticktick_ai');
   const toolsBarHtml=toolsBar.map(d=>{
     const pct=curTotal?Math.round(d.value/curTotal*100):0;
     return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
@@ -868,9 +910,10 @@ function renderTools(cur,cmp){
   </section>`;
 }
 function drawToolsCharts(cur,cmp){
-  const weeks=getTrendWeeks(),sTools=['cc','wb','codex','claudian','zcode','cpahelper_total'];
+  const weeks=getTrendWeeks(),sTools=['cc','wb','codex','claudian','zcode','cpahelper_total','ticktick_ai'];
   const normKey=k=>k==='cpahelper_total'?'cpahelper':k;
-  const series=sTools.map(k=>({key:normKey(k),name:TOOL_LABELS[normKey(k)],color:TOOL_COLORS[normKey(k)],data:weeks.map(w=>w.stats[k]||0)}));
+  // 全零序列不进范围图（避免滴答清单AI 等新工具在无数据时画一条无意义的 0 平线；有数据自动出现）
+  const series=sTools.map(k=>({key:normKey(k),name:TOOL_LABELS[normKey(k)],color:TOOL_COLORS[normKey(k)],data:weeks.map(w=>w.stats[k]||0)})).filter(s=>s.data.some(v=>v>0));
   const labels=weeks.map(w=>w.week_label);
   const curVals=series.map(s=>({name:s.name,color:s.color,value:cur.stats[s.key]||0}));
   for(const slot of ['L','R']){
@@ -949,7 +992,7 @@ function renderContent(cur,cmp){
   return `<section class="section" id="sec-content">
     <div class="section-head"><div class="section-title"><span class="tag"></span><h2>内容与知识沉淀</h2></div></div>
     <div class="chart-row c2">
-      <div class="chart-box"><h4>知识沉淀趋势（笔记+闪念）</h4><div id="chart-knowledge-trend" class="chart"></div><div class="chart-fallback"></div></div>
+      <div class="chart-box"><h4>知识沉淀趋势（Obsidian 笔记 + 闪念 Knomo）</h4><div id="chart-knowledge-trend" class="chart"></div><div class="chart-fallback"></div></div>
       <div class="chart-box"><h4>${cur.week_label} 内容主题分布</h4><div id="chart-topic-dist" class="chart"></div><div class="chart-fallback"></div></div>
     </div>
     <div class="chart-row c2">
@@ -976,6 +1019,41 @@ function kwDomainOf(word){
   const fid=cfg.fallback||'other',fd=domains[fid]||{};
   return{id:fid,label:fd.label||'其他',color:fd.color||'#94A3B8'};
 }
+/** 其他领域关键词：按词哈希轮转多彩色板（替代单调灰，图例同步渐变展示） */
+const KW_OTHER_PALETTE=['#2563EB','#7C3AED','#DB2777','#0D9488','#D97706','#E11D48','#0284C7','#CA8A04'];
+/** @returns {string} 关键词颜色：领域色优先，「其他」按词哈希轮转色板 */
+function kwWordColor(word){
+  const dom=kwDomainOf(word);
+  if(dom.id!==(kwDomainConfig().fallback||'other'))return dom.color;
+  let h=0;for(let i=0;i<word.length;i++)h=(h*31+word.charCodeAt(i))>>>0;
+  return KW_OTHER_PALETTE[h%KW_OTHER_PALETTE.length];
+}
+/** 周数形状 mask：把周数数字（如 W39 →「39」）画成与容器同尺寸的大字 canvas，转 Image 给 wordcloud 的 maskImage */
+function weekMaskImage(el,weekLabel){
+  const digits=String(weekLabel||'').replace(/[^0-9]/g,'').slice(-2)||'00';
+  const cv=document.createElement('canvas');
+  cv.width=(el&&el.clientWidth)||480;
+  cv.height=(el&&el.clientHeight)||280;
+  const ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.fillStyle='#000';
+  ctx.font='900 '+Math.round(cv.height*0.88)+'px "Arial Black",Arial,sans-serif';
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(digits,cv.width/2,cv.height/2+cv.height*0.03);
+  const img=new Image();
+  img.src=cv.toDataURL();
+  return img;
+}
+/** 按出现频率重复关键词直至填满周数形状：总实例数≈target，重复条目共享同一 value/tooltip */
+function expandKeywordData(data,target){
+  const total=data.reduce((a,k)=>a+(k.count||1),0)||1;
+  const out=[];
+  data.forEach(k=>{
+    let n=Math.max(1,Math.round((k.count||1)/total*target));
+    for(let i=0;i<n;i++)out.push({name:k.word,value:k.count||1,sources:k.sources||[]});
+  });
+  return out;
+}
 /** 渲染单个关键词 chip（词云降级形态），带领域色底边与提示 */
 function kwChipHtml(k){
   const word=typeof k==='string'?k:(k&&k.word)||'';
@@ -983,41 +1061,50 @@ function kwChipHtml(k){
   const count=(k&&k.count)!=null?k.count:null;
   const dom=kwDomainOf(word);
   const title=dom.label+(count!=null?' · '+count+' 次':'')+((k&&k.sources||[]).length?' · 来源: '+k.sources.join(' / '):'');
-  return `<span style="display:inline-block;margin:4px 6px;padding:4px 10px;background:#F1F5F9;border-radius:6px;font-size:${12+Math.min(((k&&k.weight)||0)/3,8)}px;color:var(--c-text2);white-space:nowrap;border-bottom:2px solid ${dom.color};" title="${escapeHtml(title)}">${escapeHtml(word)}</span>`;
+  return `<span style="display:inline-block;margin:4px 6px;padding:4px 10px;background:#F1F5F9;border-radius:6px;font-size:${12+Math.min(((k&&k.weight)||0)/3,8)}px;color:var(--c-text2);white-space:nowrap;border-bottom:2px solid ${kwWordColor(word)};" title="${escapeHtml(title)}">${escapeHtml(word)}</span>`;
 }
-/** 渲染领域图例（跟随映射配置，编辑 keyword_domains.json 即生效） */
+/** 渲染领域图例（跟随映射配置，编辑 keyword_domains.json 即生效；「其他」用多彩渐变标识） */
 function renderKwLegend(){
   const el=$('kwLegend');if(!el)return;
   const cfg=kwDomainConfig(),domains=cfg.domains||{},fid=cfg.fallback||'other';
   const ids=Object.keys(domains).filter(id=>id!==fid);
   if(domains[fid])ids.push(fid);
   el.innerHTML=ids.map(id=>{const d=domains[id]||{};
-    return `<span style="display:inline-flex;align-items:center;gap:4px;margin:0 8px;font-size:11px;color:var(--c-text3);"><span style="width:8px;height:8px;border-radius:2px;background:${escapeHtml(d.color||'#94A3B8')};display:inline-block;"></span>${escapeHtml(d.label||id)}</span>`;}).join('');
+    const isOther=id===fid;
+    const bg=isOther?`linear-gradient(90deg,${KW_OTHER_PALETTE.slice(0,3).join(',')})`:escapeHtml(d.color||'#94A3B8');
+    return `<span style="display:inline-flex;align-items:center;gap:4px;margin:0 8px;font-size:11px;color:var(--c-text3);"><span style="width:8px;height:8px;border-radius:2px;background:${bg};display:inline-block;"></span>${escapeHtml(d.label||id)}</span>`;}).join('');
 }
-/** 绘制领域着色词云；无数据落空态，库缺失或 setOption 失败落领域色 chips 降级态 */
+/** 绘制领域着色词云：周数形状 + 频率重复填充；无数据落空态，库缺失或 setOption 失败落领域色 chips 降级态 */
 function drawKeywordCloud(cur){
   const el=$('chart-keyword-cloud');if(!el)return;
-  const data=(cur.keywords||[]).filter(k=>k&&k.word).slice(0,40);
-  if(!data.length){markChartError('chart-keyword-cloud','本周暂无关键词数据');renderKwLegend();return;}
-  const renderChips=()=>{el.innerHTML=`<div style="line-height:2.2;text-align:center;">${data.map(kwChipHtml).join('')}</div>`;};
+  const raw=(cur.keywords||[]).filter(k=>k&&k.word).slice(0,40);
+  if(!raw.length){markChartError('chart-keyword-cloud','本周暂无关键词数据');renderKwLegend();return;}
+  const renderChips=()=>{el.innerHTML=`<div style="line-height:2.2;text-align:center;">${raw.map(kwChipHtml).join('')}</div>`;};
   if(!ECHARTS_OK){renderChips();renderKwLegend();return;}
   const c=safeChart('chart-keyword-cloud','kw-cloud');if(!c)return;
-  try{
-    c.setOption({
-      tooltip:{formatter:p=>{const d=p.data||{};const dom=kwDomainOf(d.name);const src=(d.sources||[]).join(' / ');
-        return `${escapeHtml(d.name)}<br/>${escapeHtml(dom.label)} · ${d.value} 次${src?'<br/>来源：'+escapeHtml(src):''}`;}},
-      series:[{type:'wordCloud',shape:'circle',left:'center',top:'center',width:'96%',height:'92%',
-        sizeRange:[12,42],rotationRange:[-45,45],rotationStep:45,gridSize:6,
-        textStyle:{fontFamily:'sans-serif'},
-        data:data.map(k=>({name:k.word,value:k.count||1,sources:k.sources||[],textStyle:{color:kwDomainOf(k.word).color}}))}]
-    });
-  }catch(error){
-    logErr('wordcloud_setOption_failed','chart-keyword-cloud',error);
-    try{c.dispose();}catch(e){}
-    delete chartInstances['kw-cloud'];
-    renderChips();
-  }
-  renderKwLegend();
+  const data=expandKeywordData(raw,Math.min(180,Math.max(80,raw.length*5)));
+  const paint=(mask)=>{
+    try{
+      c.setOption({
+        tooltip:{formatter:p=>{const d=p.data||{};const dom=kwDomainOf(d.name);const src=(d.sources||[]).join(' / ');
+          return `${escapeHtml(d.name)}<br/>${escapeHtml(dom.label)} · ${d.value} 次${src?'<br/>来源：'+escapeHtml(src):''}`;}},
+        series:[{type:'wordCloud',shape:'circle',maskImage:mask||null,left:'center',top:'center',width:'96%',height:'92%',
+          sizeRange:[12,44],rotationRange:[-45,45],rotationStep:45,gridSize:4,
+          textStyle:{fontFamily:'sans-serif'},
+          data:data.map(k=>({name:k.name,value:k.value,sources:k.sources,textStyle:{color:kwWordColor(k.name)}}))}]
+      });
+    }catch(error){
+      logErr('wordcloud_setOption_failed','chart-keyword-cloud',error);
+      try{c.dispose();}catch(e){}
+      delete chartInstances['kw-cloud'];
+      renderChips();
+    }
+    renderKwLegend();
+  };
+  /* data-URL 图片的 complete 判断不可靠（未解码即 true），必须等 decode() 完成再画；
+     decode 失败退回圆形（仍保留多彩着色） */
+  const mask=weekMaskImage(el,cur.week_label);
+  mask.decode().then(()=>paint(mask)).catch(()=>paint(null));
 }
 
 function drawContentCharts(cur,cmp){
@@ -1031,7 +1118,7 @@ function drawContentCharts(cur,cmp){
       yAxis:{type:'value',axisLabel:{color:C.text2}},
       series:[
         {name:'新建笔记',type:'bar',stack:'a',data:weeks.map(w=>w.stats.notes_new||0),itemStyle:{color:C.primary}},
-        {name:'Flomo闪念',type:'bar',stack:'a',data:weeks.map(w=>w.stats.flomo_memos||0),itemStyle:{color:TOOL_COLORS.flomo}},
+        {name:'闪念笔记（Knomo）',type:'bar',stack:'a',data:weeks.map(w=>w.stats.flomo_memos||0),itemStyle:{color:TOOL_COLORS.knomo}},
       ]
     },'chart-knowledge-trend');
   }
