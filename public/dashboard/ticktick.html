@@ -209,6 +209,8 @@ a{color:var(--c-primary);text-decoration:none}
 .toast{background:var(--c-navy);color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;box-shadow:var(--shadow)}
 .foot{color:var(--c-text3);font-size:12px;text-align:center;padding:8px 0 4px}
 .filter-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.sec-toggle{margin-left:auto;border:1px solid var(--c-border);background:#fff;border-radius:8px;padding:4px 12px;font-size:12px;color:var(--c-text2);cursor:pointer;flex-shrink:0}
+.sec-toggle:hover{border-color:var(--c-primary);color:var(--c-primary)}
 .err-banner{border:1px solid #FECACA;background:#FEF2F2;color:var(--c-down);border-radius:10px;padding:14px 18px;font-size:13px}
 .hidden{display:none!important}
 @media(max-width:900px){.sidebar{display:none}.main{padding:14px}.topbar{flex-wrap:wrap;height:auto;min-height:var(--topbar-h);padding:8px 14px}.topbar-brand small{display:none}}
@@ -323,33 +325,27 @@ a{color:var(--c-primary);text-decoration:none}
       </div>
     </section>
 
-    <!-- 5. 异常任务 -->
+    <!-- 5. 异常任务（默认折叠，点击展开） -->
     <section class="section" id="sec-anomaly">
       <div class="section-head">
         <span class="section-title">异常任务</span>
         <span class="section-sub" id="anomalySub"></span>
+        <button class="sec-toggle" id="anomToggle" onclick="toggleAnomaly()">展开异常清单 ▾</button>
       </div>
-      <div class="filter-row">
-        <select id="anomTypeSelect" class="period-select">
-          <option value="">全部异常类型</option>
-        </select>
-        <label style="font-size:13px;color:var(--c-text2);display:flex;gap:6px;align-items:center">
-          <input type="checkbox" id="anomShowAll"> 显示全部（默认按严重度取前 50 条）
-        </label>
+      <div id="anomBody" class="hidden">
+        <div class="filter-row">
+          <select id="anomTypeSelect" class="period-select">
+            <option value="">全部异常类型</option>
+          </select>
+          <label style="font-size:13px;color:var(--c-text2);display:flex;gap:6px;align-items:center">
+            <input type="checkbox" id="anomShowAll"> 显示全部（默认按严重度取前 50 条）
+          </label>
+        </div>
+        <div class="table-wrap"><table class="data-table" id="anomalyTable"></table></div>
       </div>
-      <div class="table-wrap"><table class="data-table" id="anomalyTable"></table></div>
     </section>
 
-    <!-- 6. 本周复盘 -->
-    <section class="section" id="sec-review">
-      <div class="section-head">
-        <span class="section-title">本周复盘</span>
-        <span class="section-sub">由真实任务数据自动生成，不含推测性结论</span>
-      </div>
-      <div class="review-grid" id="reviewGrid"></div>
-    </section>
-
-    <!-- 7. 下周行动 -->
+    <!-- 6. 下周行动 -->
     <section class="section" id="sec-next">
       <div class="section-head">
         <span class="section-title">下周行动</span>
@@ -358,8 +354,8 @@ a{color:var(--c-primary);text-decoration:none}
       <div class="table-wrap"><table class="data-table" id="nextTable"></table></div>
     </section>
 
-    <!-- 8. 数据口径 -->
-    <section class="section" id="sec-data">
+    <!-- 7. 数据口径（已隐藏：口径说明由每周分析报告的「口径声明」承担） -->
+    <section class="section hidden" id="sec-data">
       <div class="section-head">
         <span class="section-title">数据口径与字段可得性</span>
         <span class="section-sub">所有结论必须可复算：数据来源 + 计算方法 + 判断规则</span>
@@ -834,20 +830,20 @@ function renderAnomaly(){
     +'</tbody>';
 }
 
-/* ================= 渲染：复盘与下周 ================= */
-function renderReview(){
-  var r = D.review;
-  var notes = SYSTEMS.map(function(s){ return r.system_notes[s]; }).filter(Boolean);
-  $('reviewGrid').innerHTML =
-    '<div class="review-card"><h4>本周发生了什么</h4><ul>'+r.bullets.map(function(b){return '<li>'+esc(b)+'</li>';}).join('')+'</ul></div>'
-    +'<div class="review-card"><h4>四系统变化</h4><ul>'+notes.map(function(b){return '<li>'+esc(b)+'</li>';}).join('')+'</ul></div>'
-    +'<div class="review-card"><h4>值得保留的行为</h4><ul>'+r.keep.map(function(b){return '<li>'+esc(b)+'</li>';}).join('')+'</ul></div>'
-    +'<div class="review-card"><h4>本周主要异常</h4><ul>'+(r.cautions.length? r.cautions.map(function(b){return '<li>'+esc(b)+'</li>';}).join('') : '<li>无触发预警规则</li>')+'</ul></div>'
-    +'<div class="review-card" style="grid-column:1/-1"><h4>原则沉淀</h4><ul><li>当前原则库共 '+(D.insights.principles||[]).length+' 条、事件 '+(D.insights.events||[]).length+' 条。发现值得长期记录的行为时，按 pipeline/insights.json 规范新增，随下次数据构建进入看板。</li></ul></div>';
+/* ================= 渲染：下周行动（本周复盘 section 已按用户要求删除，review 数据仍进每周分析报告） ================= */
+function renderNext(){
   $('nextTable').innerHTML = '<thead><tr><th>系统</th><th>行动</th><th>依据</th></tr></thead><tbody>'
     +(D.next_week.length? D.next_week.map(function(n){
       return '<tr><td><span style="color:'+(SYS_CSS[n.system]||'var(--c-text2)')+'">'+esc(n.system)+'</span></td><td>'+esc(n.text)+'</td><td style="color:var(--c-text3);font-size:12px">'+esc(n.reason)+'</td></tr>';
     }).join('') : '<tr><td colspan="3" style="text-align:center;color:var(--c-text3);padding:20px">规则引擎未生成行动项</td></tr>')+'</tbody>';
+}
+
+/* ================= 折叠：异常任务 ================= */
+function toggleAnomaly(){
+  var body = $('anomBody'), btn = $('anomToggle');
+  var collapsed = body.classList.contains('hidden');
+  body.classList.toggle('hidden', !collapsed);
+  btn.textContent = collapsed ? '收起异常清单 ▴' : '展开异常清单 ▾';
 }
 
 /* ================= 渲染：口径 ================= */
@@ -929,8 +925,7 @@ function showPrinciple(id){
 /* ================= 导航与控件 ================= */
 var SECTIONS = [
   ['sec-overview','总览'],['sec-systems','四系统'],['sec-balance','横向分析'],
-  ['sec-detail','系统详情'],['sec-anomaly','异常任务'],['sec-review','本周复盘'],
-  ['sec-next','下周行动'],['sec-data','数据口径']
+  ['sec-detail','系统详情'],['sec-anomaly','异常任务'],['sec-next','下周行动']
 ];
 function renderNav(){
   $('navList').innerHTML = SECTIONS.map(function(s, i){
@@ -988,7 +983,7 @@ function showErr(msg){
 function renderAll(){
   renderFocusSelect(); renderSysChips();
   renderKPI(); renderOverviewCharts(); renderSysCards(); renderBalance(); renderDetail();
-  renderAnomaly(); renderReview(); renderMeta();
+  renderAnomaly(); renderNext(); renderMeta();
   Object.keys(charts).forEach(function(k){ if(charts[k] && charts[k].resize) charts[k].resize(); });
 }
 window.addEventListener('resize', function(){
