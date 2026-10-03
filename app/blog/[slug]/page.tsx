@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getAllPosts, getPostBySlug } from "@/lib/blog";
+import PostNav from "@/components/shared/PostNav";
 import Container from "@/components/shared/Container";
 import { formatDate } from "@/lib/utils";
 import Link from "next/link";
@@ -124,6 +125,9 @@ export default async function BlogPostPage({
               ))}
             </div>
           </footer>
+
+          {/* Prev / next post navigation */}
+          <PostNav slug={post.slug} />
         </div>
       </Container>
     </article>
