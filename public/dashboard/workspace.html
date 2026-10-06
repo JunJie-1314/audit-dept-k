@@ -391,7 +391,7 @@ body{
 .legend i{width:9px;height:9px;border-radius:3px;display:inline-block;}
 
 /* ============ 内容沉淀 ============ */
-.flomo-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+.knomo-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
 .f-chip{
   display:flex;align-items:center;gap:8px;font-size:12px;
   padding:6px 12px;border-radius:20px;
@@ -885,7 +885,7 @@ body{
       <section class="card" id="sec-treasured" style="scroll-margin-top:80px;"></section>
 
       <p style="text-align:center;color:var(--text3);font-size:11px;margin-top:26px;">
-        K 个人工作台 · 数据源 Obsidian 周记 + Flomo + TickTick + CPAHelper + 各 AI 工具会话 · 由 build_workspace.py 构建
+        K 个人工作台 · 数据源 Obsidian 周记 + Knomo + TickTick + CPAHelper + 各 AI 工具会话 · 由 build_workspace.py 构建
       </p>
     </div>
   </div>
@@ -976,9 +976,11 @@ function kwDomainOf(word){
   const fid=cfg.fallback||"other",fd=domains[fid]||{};
   return{id:fid,label:fd.label||"其他",color:fd.color||"#94A3B8"};
 }
-/* 工具品牌规范：官方原色 logo（flomo 特例绿、Codex OpenAI 黑白、cc 与 claudian 同色系微色差） */
-const TOOL_COLORS={cc:"#E5967A",wb:"#15803D",codex:"#F5F7FA",claudian:"#D97757",cpahelper:"#107C41",flomo:"#22C55E",obsidian:"#7C3AED",flomoagent:"#22C55E"};
+/* 工具品牌规范：官方原色 logo（Knomo 复用 Obsidian 紫、Codex OpenAI 黑白、cc 与 claudian 同色系微色差） */
+const TOOL_COLORS={cc:"#E5967A",wb:"#15803D",codex:"#F5F7FA",claudian:"#D97757",cpahelper:"#107C41",obsidian:"#7C3AED",flomoagent:"#22C55E",knomo:"#7C3AED"};
 const TOOL_ICONS={"claudian": "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z\" fill=\"currentColor\"/></svg>", "cc": "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z\" fill=\"currentColor\"/></svg>", "codex": "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z\" fill=\"currentColor\"/></svg>", "obsidian": "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M19.355 18.538a68.967 68.959 0 0 0 1.858-2.954.81.81 0 0 0-.062-.9c-.516-.685-1.504-2.075-2.042-3.362-.553-1.321-.636-3.375-.64-4.377a1.707 1.707 0 0 0-.358-1.05l-3.198-4.064a3.744 3.744 0 0 1-.076.543c-.106.503-.307 1.004-.536 1.5-.134.29-.29.6-.446.914l-.31.626c-.516 1.068-.997 2.227-1.132 3.59-.124 1.26.046 2.73.815 4.481.128.011.257.025.386.044a6.363 6.363 0 0 1 3.326 1.505c.916.79 1.744 1.922 2.415 3.5zM8.199 22.569c.073.012.146.02.22.02.78.024 2.095.092 3.16.29.87.16 2.593.64 4.01 1.055 1.083.316 2.198-.548 2.355-1.664.114-.814.33-1.735.725-2.58l-.01.005c-.67-1.87-1.522-3.078-2.416-3.849a5.295 5.295 0 0 0-2.778-1.257c-1.54-.216-2.952.19-3.84.45.532 2.218.368 4.829-1.425 7.531zM5.533 9.938c-.023.1-.056.197-.098.29L2.82 16.059a1.602 1.602 0 0 0 .313 1.772l4.116 4.24c2.103-3.101 1.796-6.02.836-8.3-.728-1.73-1.832-3.081-2.55-3.831zM9.32 14.01c.615-.183 1.606-.465 2.745-.534-.683-1.725-.848-3.233-.716-4.577.154-1.552.7-2.847 1.235-3.95.113-.235.223-.454.328-.664.149-.297.288-.577.419-.86.217-.47.379-.885.46-1.27.08-.38.08-.72-.014-1.043-.095-.325-.297-.675-.68-1.06a1.6 1.6 0 0 0-1.475.36l-4.95 4.452a1.602 1.602 0 0 0-.513.952l-.427 2.83c.672.59 2.328 2.316 3.335 4.711.09.21.175.43.253.653z\" fill=\"currentColor\"/></svg>", "cpahelper": "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M23 1.5q.41 0 .7.3.3.29.3.7v19q0 .41-.3.7-.29.3-.7.3H7q-.41 0-.7-.3-.3-.29-.3-.7V18H1q-.41 0-.7-.3-.3-.29-.3-.7V7q0-.41.3-.7Q.58 6 1 6h5V2.5q0-.41.3-.7.29-.3.7-.3zM6 13.28l1.42 2.66h2.14l-2.38-3.87 2.34-3.8H7.46l-1.3 2.4-.05.08-.04.09-.64-1.28-.66-1.29H2.59l2.27 3.82-2.48 3.85h2.16zM14.25 21v-3H7.5v3zm0-4.5v-3.75H12v3.75zm0-5.25V7.5H12v3.75zm0-5.25V3H7.5v3zm8.25 15v-3h-6.75v3zm0-4.5v-3.75h-6.75v3.75zm0-5.25V7.5h-6.75v3.75zm0-5.25V3h-6.75v3Z\" fill=\"currentColor\"/></svg>", "flomo": "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5\" fill=\"currentColor\"/><path d=\"M15 7.8h-1.9c-1.8 0-3 1.2-3 3V17\" stroke=\"#FFFFFF\" stroke-width=\"2.1\" stroke-linecap=\"round\" fill=\"none\"/><path d=\"M8.6 12h5.2\" stroke=\"#FFFFFF\" stroke-width=\"2.1\" stroke-linecap=\"round\" fill=\"none\"/></svg>", "flomoagent": "<svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"2.5\" y=\"2.5\" width=\"19\" height=\"19\" rx=\"5\" fill=\"currentColor\"/><path d=\"M15 7.8h-1.9c-1.8 0-3 1.2-3 3V17\" stroke=\"#FFFFFF\" stroke-width=\"2.1\" stroke-linecap=\"round\" fill=\"none\"/><path d=\"M8.6 12h5.2\" stroke=\"#FFFFFF\" stroke-width=\"2.1\" stroke-linecap=\"round\" fill=\"none\"/></svg>", "wb": "<svg viewBox=\"0 0 130 130\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_283_481)\">\n<rect width=\"130\" height=\"130\" rx=\"28.0526\" fill=\"url(#paint0_linear_283_481)\"/>\n<g filter=\"url(#filter0_f_283_481)\">\n<circle cx=\"108.36\" cy=\"141.759\" r=\"41.8289\" fill=\"#FFE355\" fill-opacity=\"0.49\" style=\"fill:#FFE355;fill:color(display-p3 1.0000 0.8891 0.3348);fill-opacity:0.49;\"/>\n</g>\n<path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M99.4282 10.1638C100.703 9.02064 100.78 8.97669 101.714 8.92058C103.229 8.80992 104.616 9.53654 106.977 11.6861C112.493 16.6987 120.175 27.0043 124.95 35.8049L126.795 39.2201L129.401 40.5162C131.917 41.7875 136.044 44.394 137.767 45.7919C138.547 46.4365 138.657 46.4497 139.467 46.1344C143.125 44.7098 148.365 46.5984 152.987 51.0325C157.148 55.0201 161.133 61.833 162.659 67.5195C162.882 68.4346 163.178 70.4028 163.286 71.8681C163.634 77.013 161.984 81.1226 158.806 82.9826C158.158 83.3572 158.115 83.4591 158.133 85.0776C158.279 92.7829 156.202 100.474 152.03 107.974C147.32 116.396 138.933 125.107 127.583 133.315C121.488 137.751 107.067 146.153 100.547 149.102C84.9287 156.134 72.4081 158.831 61.5321 157.498C55.0448 156.712 47.7017 154.18 43.357 151.241C42.2133 150.45 42.0324 150.402 41.1585 150.652C36.5074 151.988 30.4158 149.242 25.241 143.498C23.177 141.202 19.8464 135.564 18.7664 132.547C16.2684 125.487 16.7648 119.115 20.0922 115.31C20.952 114.33 20.9796 114.289 20.7918 112.641C20.4817 109.943 20.3406 105.951 20.4823 103.375L20.5947 100.968L16.9813 94.5763C11.3858 84.6202 7.8314 76.2603 6.46025 69.8729C5.7364 66.3704 5.78144 64.8166 6.67051 63.6668C7.21161 62.9725 8.98625 62.2531 11.1257 61.858C16.5115 60.9125 28.2577 61.7685 41.3255 64.0757L42.6832 64.3101L45.6662 61.6722C50.6181 57.2859 53.9074 54.8262 59.9722 51.0446C66.2933 47.0897 73.4271 43.8362 81.4607 41.26L84.0384 40.4337L85.4554 36.7142C90.5286 23.3221 95.7238 13.4483 99.4282 10.1638ZM56.9346 78.7893C51.2012 82.0995 48.3345 83.7553 46.228 85.6101C37.6975 93.1218 34.5094 105.02 38.1411 115.791C39.038 118.45 40.6927 121.318 44.0029 127.051C47.3132 132.785 48.9688 135.651 50.8238 137.758C58.3355 146.288 70.2338 149.476 81.0044 145.845C83.664 144.948 86.5308 143.292 92.2642 139.982L125.248 120.939C130.981 117.629 133.848 115.974 135.955 114.119C144.485 106.607 147.673 94.7089 144.042 83.9384C143.145 81.2787 141.489 78.412 138.179 72.6785C134.869 66.9451 133.214 64.078 131.359 61.9714C123.847 53.4409 111.949 50.2528 101.178 53.8845C98.5186 54.7814 95.6515 56.4361 89.918 59.7463L56.9346 78.7893Z\" fill=\"url(#paint1_linear_283_481)\"/>\n<rect x=\"60.1133\" y=\"101.836\" width=\"13.0294\" height=\"27.061\" rx=\"6.51468\" transform=\"rotate(-30 60.1133 101.836)\" fill=\"white\" style=\"fill:white;fill-opacity:1;\"/>\n<rect x=\"95.2666\" y=\"81.54\" width=\"13.0294\" height=\"27.061\" rx=\"6.51468\" transform=\"rotate(-30 95.2666 81.54)\" fill=\"white\" style=\"fill:white;fill-opacity:1;\"/>\n</g>\n<defs>\n<filter id=\"filter0_f_283_481\" x=\"30.78\" y=\"64.179\" width=\"155.161\" height=\"155.16\" filterUnits=\"userSpaceOnUse\" color-interpolation-filters=\"sRGB\">\n<feFlood flood-opacity=\"0\" result=\"BackgroundImageFix\"/>\n<feBlend mode=\"normal\" in=\"SourceGraphic\" in2=\"BackgroundImageFix\" result=\"shape\"/>\n<feGaussianBlur stdDeviation=\"17.8756\" result=\"effect1_foregroundBlur_283_481\"/>\n</filter>\n<linearGradient id=\"paint0_linear_283_481\" x1=\"65\" y1=\"0\" x2=\"65\" y2=\"130\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"#0EC8A9\" style=\"stop-color:#0EC8A9;stop-color:color(display-p3 0.0565 0.7837 0.6625);stop-opacity:1;\"/>\n<stop offset=\"1\" stop-color=\"#01C886\" style=\"stop-color:#01C886;stop-color:color(display-p3 0.0021 0.7858 0.5246);stop-opacity:1;\"/>\n</linearGradient>\n<linearGradient id=\"paint1_linear_283_481\" x1=\"54.1591\" y1=\"36.0036\" x2=\"114.973\" y2=\"141.337\" gradientUnits=\"userSpaceOnUse\">\n<stop stop-color=\"white\" stop-opacity=\"0.8\" style=\"stop-color:white;stop-opacity:0.8;\"/>\n<stop offset=\"0.437689\" stop-color=\"white\" style=\"stop-color:white;stop-opacity:1;\"/>\n</linearGradient>\n<clipPath id=\"clip0_283_481\">\n<rect width=\"130\" height=\"130\" rx=\"28.0526\" fill=\"white\" style=\"fill:white;fill-opacity:1;\"/>\n</clipPath>\n</defs>\n</svg>\n"};
+/* Knomo 为 Obsidian 插件，复用 Obsidian 图标与品牌紫 */
+TOOL_ICONS.knomo=TOOL_ICONS.obsidian;
 function toolIcon(key){return TOOL_ICONS[key]||"";}
 const pad=n=>String(n).padStart(2,"0");
 const lastN=(arr,n)=>arr.slice(-n);
@@ -988,7 +990,7 @@ let DATA=null, WEEKS=[], CUR_IDX=0, trophyBadges={};
 /* 判断某周是否有真实数据（kiss 须有实际内容，空对象不算——防空壳周混入统计） */
 function hasData(w){
   const s=w.stats||{};
-  return !!((s.notes_new||0)+(s.flomo_memos||0)+(s.cpahelper_total||0)+(s.wb||0)+(s.claudian||0)) ||
+  return !!((s.notes_new||0)+(s.knomo_memos||0)+(s.cpahelper_total||0)+(s.wb||0)+(s.claudian||0)) ||
          !!(w.kiss&&(w.kiss.keep||w.kiss.improve||w.kiss.start||w.kiss.stop)) ||
          (w.issues&&w.issues.length) || !!w.density;
 }
@@ -1120,7 +1122,7 @@ function renderHero(){
   const fireCount=(density.match(/🔥/g)||[]).length;
   const stats=[
     {n:s.notes_new||0, lab:"Obsidian 新增笔记", ico:"📝"},
-    {n:s.flomo_memos||0, lab:"Flomo 闪念", ico:"💬"},
+    {n:s.knomo_memos||0, lab:"Knomo 闪念", ico:"💬"},
     {n:s.cpahelper_total||0, lab:"CPAHelper 会话", ico:"🧮"},
     {n:s.claudian||0, lab:"Claudian 会话", ico:"🤖"},
     {n:s.wb||0, lab:"WorkBuddy 会话", ico:"🛠"},
@@ -1148,14 +1150,14 @@ function renderKpi(){
   const items=[
     {key:"notes_new", name:"Obsidian 新增笔记", tool:"obsidian", ico:"📝", v:s.notes_new||0, u:"篇"},
     {key:"notes_modified", name:"Obsidian 修改笔记", tool:"obsidian", ico:"✏️", v:s.notes_modified||0, u:"篇"},
-    {key:"flomo_memos", name:"Flomo 闪念", tool:"flomo", ico:"💬", v:s.flomo_memos||0, u:"条"},
+    {key:"knomo_memos", name:"Knomo 闪念", tool:"knomo", ico:"💬", v:s.knomo_memos||0, u:"条"},
     {key:"cpahelper_total", name:"CPAHelper 会话", tool:"cpahelper", ico:"🧮", v:s.cpahelper_total||0, u:"次"},
     {key:"cpahelper_tasks", name:"CPAHelper 任务", tool:"cpahelper", ico:"📋", v:s.cpahelper_tasks||0, u:"个"},
     {key:"claudian", name:"Claudian 会话", tool:"claudian", ico:"🤖", v:s.claudian||0, u:"次"},
     {key:"wb", name:"WorkBuddy 会话", tool:"wb", ico:"🛠", v:s.wb||0, u:"次"},
     {key:"tasks_done", name:"完成任务", tool:"", ico:"✅", v:s.tasks_done||0, u:"个"},
     {key:"inbox_backlog", name:"收件箱积压", tool:"", ico:"📥", v:s.inbox_backlog||0, u:"条"},
-    {key:"flomo_diaries", name:"Flomo 日记", tool:"flomo", ico:"📓", v:s.flomo_diaries||0, u:"篇"},
+    {key:"knomo_diaries", name:"Knomo 日记", tool:"knomo", ico:"📓", v:s.knomo_diaries||0, u:"篇"},
   ];
   $("kpiGrid").innerHTML=items.map(it=>{
     const pv=prev?(prev[it.key]||0):null;
@@ -1318,7 +1320,7 @@ function renderTools(){
 /* ================= 渲染：内容沉淀 ================= */
 function renderContent(){
   const w=curWeek();
-  const cats=w.flomo_categories||[];
+  const cats=w.knomo_categories||w.flomo_categories||[];
   const para=w.para_distribution||[];
   const kws=(w.keywords||[]).slice().sort((a,b)=>((b&&b.count)||0)-((a&&a.count)||0)).slice(0,18);
   const paraNew=para.reduce((a,p)=>a+(p.new||0),0);
@@ -1328,10 +1330,10 @@ function renderContent(){
     <div class="card-head">
       <div class="ico ico-pink">🧠</div>
       <h3>内容与知识沉淀</h3>
-      <span class="sub">Flomo 分类 · PARÁ 分布 · 关键词</span>
+      <span class="sub">Knomo 分类 · PARÁ 分布 · 关键词</span>
     </div>
-    <div class="flomo-chips">
-      ${cats.length?cats.map(c=>`<span class="f-chip">${esc(c.name)} <span class="fc-num">${c.count}</span></span>`).join(""):`<span class="empty" style="padding:4px 0;text-align:left;">本周无 Flomo 分类统计</span>`}
+    <div class="knomo-chips">
+      ${cats.length?cats.map(c=>`<span class="f-chip">${esc(c.name)} <span class="fc-num">${c.count}</span></span>`).join(""):`<span class="empty" style="padding:4px 0;text-align:left;">本周无 Knomo 分类统计</span>`}
     </div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">PARÁ 笔记流向（新增 ${paraNew} / 修改 ${paraMod}）</div>
     ${para.length?para.map(p=>{
@@ -1383,7 +1385,7 @@ function renderTrend(){
   const labels=recent.map(w=>w.week_label.replace("W",""));
   const series=[
     {name:"新增笔记", key:"notes_new", color:TOOL_COLORS.obsidian},
-    {name:"Flomo 闪念", key:"flomo_memos", color:TOOL_COLORS.flomo},
+    {name:"Knomo 闪念", key:"knomo_memos", color:TOOL_COLORS.knomo},
     {name:"CPAHelper 会话", key:"cpahelper_total", color:TOOL_COLORS.cpahelper},
   ];
   $("trendGrid").innerHTML=series.map(s=>{
@@ -1450,14 +1452,14 @@ function clearTrophyOverride(id){
 }
 
 function aggregateForTrophy(){
-  const agg = { notes:0, flomo:0, cpaTasks:0, cpaTotal:0, wb:0, claudian:0, tasksDone:0,
+  const agg = { notes:0, knomo:0, cpaTasks:0, cpaTotal:0, wb:0, claudian:0, tasksDone:0,
                 densityMax:0, kissKeepHasMethod:0, juntaoAchWeeks:0, recordedWeeks:0,
                 streak:0, firstLabel:'', lastLabel:'' };
   const METHOD_KW = /(方法|SOP|体系|流程|沉淀)/;
   WEEKS.forEach(w=>{
     const s = w.stats||{};
     agg.notes       += s.notes_new||0;
-    agg.flomo       += s.flomo_memos||0;
+    agg.knomo       += s.knomo_memos||0;
     agg.cpaTasks    += s.cpahelper_tasks||0;
     agg.cpaTotal    += s.cpahelper_total||0;
     agg.wb          += s.wb||0;
@@ -1497,8 +1499,8 @@ function evaluateAutoBadges(agg){
      evidence:`实际：${agg.densityMax} 周满密度`},
     {id:'b-notes', title:'笔记狂魔', sub:'Obsidian 累计新增', rarity: agg.notes>=200 ? 'rare':'common',
      icon:'book', evidence:`实际：${agg.notes} 篇 / 阈值 200`},
-    {id:'b-flomo', title:'闪念猎手', sub:'Flomo 累计闪念', rarity: agg.flomo>=150 ? 'common':'common',
-     icon:'scroll', evidence:`实际：${agg.flomo} 条 / 阈值 150`},
+    {id:'b-knomo', title:'闪念猎手', sub:'Knomo 累计闪念', rarity: agg.knomo>=150 ? 'common':'common',
+     icon:'scroll', evidence:`实际：${agg.knomo} 条 / 阈值 150`},
     {id:'b-ai-orchestrator', title:'AI 协同王者', sub:'多 AI 工具协同破百',
      rarity: agg.ai>=250 ? 'epic':agg.ai>=200?'rare':'common', icon:'gear',
      evidence:`实际：${agg.ai} 次 / 阈值 250`},
