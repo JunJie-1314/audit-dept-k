@@ -1322,7 +1322,21 @@ function renderContent(){
   const w=curWeek();
   const cats=w.knomo_categories||w.flomo_categories||[];
   const para=w.para_distribution||[];
-  const kws=(w.keywords||[]).slice().sort((a,b)=>((b&&b.count)||0)-((a&&a.count)||0)).slice(0,18);
+  /* 四系统高频词 chips（2026-10-06 用户指令并入关键词云，独立区块撤销）——
+     系统色与 workbench XP_KEYS 同源；每系统 top8；同名词条系统词优先（分类比全局 ngram 更准） */
+  const SYS_META=[
+    {key:"growth",name:"成长",color:"#DC2626"},
+    {key:"social",name:"品牌社交",color:"#EA580C"},
+    {key:"fun",name:"娱乐",color:"#2563EB"},
+    {key:"life",name:"生活",color:"#16A34A"},
+  ];
+  const clouds=w.system_keywords||{};
+  const sysWords=[];
+  SYS_META.forEach(m=>((clouds[m.key]||[]).filter(x=>x&&x.word)).slice(0,8).forEach(x=>{
+    if(!sysWords.some(s=>s.word===x.word))sysWords.push({word:x.word,count:x.count,color:m.color,sys:m.name,source:x.source});
+  }));
+  const sysSet=new Set(sysWords.map(s=>s.word));
+  const kws=(w.keywords||[]).filter(k=>k&&!sysSet.has((k&&k.word)||"")).slice().sort((a,b)=>((b&&b.count)||0)-((a&&a.count)||0)).slice(0,18);
   const paraNew=para.reduce((a,p)=>a+(p.new||0),0);
   const paraMod=para.reduce((a,p)=>a+(p.modified||0),0);
   const paraMax=Math.max(1,...para.map(p=>(p.new||0)+(p.modified||0)));
@@ -1330,7 +1344,7 @@ function renderContent(){
     <div class="card-head">
       <div class="ico ico-pink">🧠</div>
       <h3>内容与知识沉淀</h3>
-      <span class="sub">Knomo 分类 · PARÁ 分布 · 关键词</span>
+      <span class="sub">Knomo 分类 · PARÁ 分布 · 关键词与四系统高频词</span>
     </div>
     <div class="knomo-chips">
       ${cats.length?cats.map(c=>`<span class="f-chip">${esc(c.name)} <span class="fc-num">${c.count}</span></span>`).join(""):`<span class="empty" style="padding:4px 0;text-align:left;">本周无 Knomo 分类统计</span>`}
@@ -1346,15 +1360,24 @@ function renderContent(){
         </div>
       </div>`;
     }).join(""):`<div class="empty" style="padding:8px 0;">本周无 PARÁ 分布数据</div>`}
-    <div class="kw-cloud">${kws.map(k=>{
-      const word=typeof k==="string"?k:(k&&k.word)||"";
-      if(!word)return"";
-      const dom=kwDomainOf(word);
-      const count=(k&&k.count)||"";
-      const src=(k&&k.sources||[]).join(" / ");
-      const tip=dom.label+(count?` · ${count} 次`:"")+(src?` · 来源: ${src}`:"");
-      return `<span class="kw" style="border-bottom:2px solid ${dom.color};" title="${esc(tip)}">${esc(word)}${count?`<i style="font-style:normal;opacity:.55;font-size:10px;margin-left:3px;">${count}</i>`:""}</span>`;
-    }).join("")||`<span class="empty" style="padding:8px 0;">暂无关键词</span>`}</div>`;
+    <div class="kw-cloud">${(()=>{
+      const chip=(word,count,color,tip)=>`<span class="kw" style="border-bottom:2px solid ${color};" title="${esc(tip)}">${esc(word)}${count?`<i style="font-style:normal;opacity:.55;font-size:10px;margin-left:3px;">${count}</i>`:""}</span>`;
+      const kwHtml=kws.map(k=>{
+        const word=typeof k==="string"?k:(k&&k.word)||"";
+        if(!word)return"";
+        const dom=kwDomainOf(word);
+        const count=(k&&k.count)||"";
+        const src=(k&&k.sources||[]).join(" / ");
+        const tip=dom.label+(count?` · ${count} 次`:"")+(src?` · 来源: ${src}`:"");
+        return chip(word,count,dom.color,tip);
+      }).join("");
+      const sysHtml=sysWords.map(x=>{
+        const count=(x.count!=null)?x.count:"";
+        const tip=`${x.sys} · ${count?count+" 次":""}${x.source?` · 来源: ${x.source}`:""}`;
+        return chip(x.word,count,x.color,tip);
+      }).join("");
+      return (kwHtml+sysHtml)||`<span class="empty" style="padding:8px 0;">暂无关键词</span>`;
+    })()}</div>`;
 }
 
 /* ================= 渲染：AI 洞察 ================= */

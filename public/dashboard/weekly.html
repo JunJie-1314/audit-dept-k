@@ -236,6 +236,7 @@
   .chart-row{display:grid;gap:16px;margin-bottom:16px;}
   .chart-row.c2{grid-template-columns:1fr 1fr;}
   .chart-row.c3{grid-template-columns:1fr 1fr 1fr;}
+  .chart-row.c4{grid-template-columns:repeat(4,1fr);}
   .chart-box{background:#FAFBFC;border:1px solid var(--c-border);border-radius:8px;padding:16px;}
   .chart-box h4{margin:0 0 10px;font-size:15px;font-weight:600;color:var(--c-text);}
   .chart{width:100%;height:340px;}
@@ -316,7 +317,7 @@
     .sidebar{display:none;}
     .main{width:100%;}
     .decision-grid,.kpi-grid,.risk-cards{grid-template-columns:1fr;}
-    .chart-row.c2,.chart-row.c3,.chart-row.c12,.chart-row.c21{grid-template-columns:1fr;}
+    .chart-row.c2,.chart-row.c3,.chart-row.c4,.chart-row.c12,.chart-row.c21{grid-template-columns:1fr;}
     .kiss-grid,.ai-grid,.project-story-grid,.project-chart-grid{grid-template-columns:1fr;}
     .kpi-value{font-size:26px;}
     .section{margin-bottom:12px;padding:16px;scroll-margin-top:148px;}
@@ -997,7 +998,7 @@ function renderContent(cur,cmp){
     </div>
     <div class="chart-row c2">
       <div class="chart-box"><h4>本周形成的关键知识资产</h4><ul style="margin:0;padding-left:18px;font-size:13px;color:var(--c-text2);line-height:1.8;">${assets||'<li>—</li>'}</ul></div>
-      <div class="chart-box"><h4>本周关键词 · 领域分布</h4><div id="chart-keyword-cloud" class="chart sm"></div><div class="chart-fallback"></div><div class="kw-legend" id="kwLegend"></div></div>
+      <div class="chart-box"><h4>本周关键词与四系统高频词 · 领域/系统着色</h4><div id="chart-keyword-cloud" class="chart sm"></div><div class="chart-fallback"></div><div class="kw-legend" id="kwLegend"></div></div>
     </div>
   </section>`;
 }
@@ -1044,54 +1045,74 @@ function weekMaskImage(el,weekLabel){
   img.src=cv.toDataURL();
   return img;
 }
-/** 按出现频率重复关键词直至填满周数形状：总实例数≈target，重复条目共享同一 value/tooltip */
+/** 按归一化权重 v 重复关键词直至填满周数形状：总实例数≈target；
+ *  两池（关键词/系统词）量纲不同，v 由调用方按池内 max 归一化到 [1,46] 后传入（value=字号口径，真实次数在 count） */
 function expandKeywordData(data,target){
-  const total=data.reduce((a,k)=>a+(k.count||1),0)||1;
+  const sv=data.reduce((a,k)=>a+(k.v||1),0)||1;
   const out=[];
   data.forEach(k=>{
-    let n=Math.max(1,Math.round((k.count||1)/total*target));
-    for(let i=0;i<n;i++)out.push({name:k.word,value:k.count||1,sources:k.sources||[]});
+    const n=Math.max(1,Math.min(6,Math.round((k.v||1)/sv*target)));
+    for(let i=0;i<n;i++)out.push({name:k.word,value:k.v||1,count:k.count||1,sys:k.sys||null,color:k.color||null,sources:k.sources||[]});
   });
   return out;
 }
-/** 渲染单个关键词 chip（词云降级形态），带领域色底边与提示 */
-function kwChipHtml(k){
+/** 渲染单个关键词 chip（词云降级形态），带领域色底边与提示；sys 词条传 colorOverride=系统色 */
+function kwChipHtml(k,colorOverride){
   const word=typeof k==='string'?k:(k&&k.word)||'';
   if(!word)return'';
   const count=(k&&k.count)!=null?k.count:null;
   const dom=kwDomainOf(word);
-  const title=dom.label+(count!=null?' · '+count+' 次':'')+((k&&k.sources||[]).length?' · 来源: '+k.sources.join(' / '):'');
-  return `<span style="display:inline-block;margin:4px 6px;padding:4px 10px;background:#F1F5F9;border-radius:6px;font-size:${12+Math.min(((k&&k.weight)||0)/3,8)}px;color:var(--c-text2);white-space:nowrap;border-bottom:2px solid ${kwWordColor(word)};" title="${escapeHtml(title)}">${escapeHtml(word)}</span>`;
+  const title=(k&&k.sys?k.sys+' · ':dom.label+' · ')+(count!=null?count+' 次':'')+((k&&k.sources||[]).length?' · 来源: '+k.sources.join(' / '):'');
+  return `<span style="display:inline-block;margin:4px 6px;padding:4px 10px;background:#F1F5F9;border-radius:6px;font-size:${12+Math.min(((k&&k.weight)||0)/3,8)}px;color:var(--c-text2);white-space:nowrap;border-bottom:2px solid ${colorOverride||kwWordColor(word)};" title="${escapeHtml(title)}">${escapeHtml(word)}</span>`;
 }
-/** 渲染领域图例（跟随映射配置，编辑 keyword_domains.json 即生效；「其他」用多彩渐变标识） */
+/** 渲染领域图例（跟随映射配置，编辑 keyword_domains.json 即生效；「其他」用多彩渐变标识）+ 四系统高频词图例 */
 function renderKwLegend(){
   const el=$('kwLegend');if(!el)return;
   const cfg=kwDomainConfig(),domains=cfg.domains||{},fid=cfg.fallback||'other';
   const ids=Object.keys(domains).filter(id=>id!==fid);
   if(domains[fid])ids.push(fid);
-  el.innerHTML=ids.map(id=>{const d=domains[id]||{};
+  const domHtml=ids.map(id=>{const d=domains[id]||{};
     const isOther=id===fid;
     const bg=isOther?`linear-gradient(90deg,${KW_OTHER_PALETTE.slice(0,3).join(',')})`:escapeHtml(d.color||'#94A3B8');
     return `<span style="display:inline-flex;align-items:center;gap:4px;margin:0 8px;font-size:11px;color:var(--c-text3);"><span style="width:8px;height:8px;border-radius:2px;background:${bg};display:inline-block;"></span>${escapeHtml(d.label||id)}</span>`;}).join('');
+  const sysHtml=SYS_CLOUD_META.map(m=>`<span style="display:inline-flex;align-items:center;gap:4px;margin:0 8px;font-size:11px;color:var(--c-text3);"><span style="width:8px;height:8px;border-radius:2px;background:${m.color};display:inline-block;"></span>${escapeHtml(m.name)}词</span>`).join('');
+  el.innerHTML=domHtml+sysHtml;
 }
-/** 绘制领域着色词云：周数形状 + 频率重复填充；无数据落空态，库缺失或 setOption 失败落领域色 chips 降级态 */
+/** 绘制领域着色词云：周数形状 + 频率重复填充；四系统高频词（system_keywords 每系统 top8）以系统色并入同一池
+ *  （2026-10-06 用户指令：独立四系统词云撤销，两池按池内 max 归一化到 [1,46] 同级字号，同名词条系统词优先）；
+ *  无数据落空态，库缺失或 setOption 失败落领域/系统色 chips 降级态 */
 function drawKeywordCloud(cur){
   const el=$('chart-keyword-cloud');if(!el)return;
-  const raw=(cur.keywords||[]).filter(k=>k&&k.word).slice(0,40);
-  if(!raw.length){markChartError('chart-keyword-cloud','本周暂无关键词数据');renderKwLegend();return;}
-  const renderChips=()=>{el.innerHTML=`<div style="line-height:2.2;text-align:center;">${raw.map(kwChipHtml).join('')}</div>`;};
+  const clouds=cur.system_keywords||{};
+  /* 系统词池：每系统 top8，保序喂入（本周段在前 = 占位优先）；池内同名去重 */
+  const sysRaw=[];
+  SYS_CLOUD_META.forEach(m=>{
+    ((clouds[m.key]||[]).filter(k=>k&&k.word)).slice(0,8).forEach(w=>{
+      if(!sysRaw.some(x=>x.word===w.word))sysRaw.push({word:w.word,count:w.count||1,color:m.color,sys:m.name});
+    });
+  });
+  /* 关键词池：领域色，与系统词同名者丢弃（系统分类比全局 ngram 更准） */
+  const sysSet=new Set(sysRaw.map(x=>x.word));
+  const kwRaw=(cur.keywords||[]).filter(k=>k&&k.word&&!sysSet.has(k.word)).slice(0,30);
+  if(!kwRaw.length&&!sysRaw.length){markChartError('chart-keyword-cloud','本周暂无关键词数据');renderKwLegend();return;}
+  /* 池内 max 归一化：v ∈ [1,46]，两池 top 词同级大字号 */
+  const kwMax=kwRaw.length?Math.max.apply(null,kwRaw.map(k=>k.count||1)):1;
+  const sysMax=sysRaw.length?Math.max.apply(null,sysRaw.map(k=>k.count||1)):1;
+  const raw=[].concat(kwRaw.map(k=>({word:k.word,count:k.count||1,sources:k.sources||[]})),sysRaw);
+  raw.forEach(k=>{const maxPool=(k.sys?sysMax:kwMax)||1;k.v=1+Math.round(((k.count||1)/maxPool)*45);});
+  const renderChips=()=>{el.innerHTML=`<div style="line-height:2.2;text-align:center;">${raw.map(k=>kwChipHtml(k,k.color)).join('')}</div>`;};
   if(!ECHARTS_OK){renderChips();renderKwLegend();return;}
   const c=safeChart('chart-keyword-cloud','kw-cloud');if(!c)return;
-  const data=expandKeywordData(raw,Math.min(180,Math.max(80,raw.length*5)));
+  const data=expandKeywordData(raw,Math.min(90,Math.max(80,raw.length*2)));
   const paint=(mask)=>{
     try{
       c.setOption({
-        tooltip:{formatter:p=>{const d=p.data||{};const dom=kwDomainOf(d.name);const src=(d.sources||[]).join(' / ');
-          return `${escapeHtml(d.name)}<br/>${escapeHtml(dom.label)} · ${d.value} 次${src?'<br/>来源：'+escapeHtml(src):''}`;}},
+        tooltip:{formatter:p=>{const d=p.data||{};const src=(d.sources||[]).join(' / ');
+          return `${escapeHtml(d.name)}<br/>${d.sys?escapeHtml(d.sys):escapeHtml(kwDomainOf(d.name).label)} · ${d.count} 次${src?'<br/>来源：'+escapeHtml(src):''}`;}},
         series:[{type:'wordCloud',shape:'circle',maskImage:mask||null,left:'center',top:'center',width:'96%',height:'92%',
-          sizeRange:[12,44],rotationRange:[-45,45],rotationStep:45,gridSize:4,
+          sizeRange:[12,40],rotationRange:[-45,45],rotationStep:45,gridSize:4,
           textStyle:{fontFamily:'sans-serif'},
-          data:data.map(k=>({name:k.name,value:k.value,sources:k.sources,textStyle:{color:kwWordColor(k.name)}}))}]
+          data:data.map(k=>({name:k.name,value:k.value,count:k.count,sys:k.sys,sources:k.sources,textStyle:{color:k.color||kwWordColor(k.name)}}))}]
       });
     }catch(error){
       logErr('wordcloud_setOption_failed','chart-keyword-cloud',error);
@@ -1106,6 +1127,15 @@ function drawKeywordCloud(cur){
   const mask=weekMaskImage(el,cur.week_label);
   mask.decode().then(()=>paint(mask)).catch(()=>paint(null));
 }
+
+/* ============ 四系统语义色（原独立词云已并入上方本周关键词词云）============ */
+/** 四系统语义色（workbench Growth.tsx:XP_KEYS 同源），供系统词条染色与图例使用 */
+const SYS_CLOUD_META=[
+  {key:'growth',name:'成长',char:'长',color:'#DC2626'},
+  {key:'social',name:'品牌社交',char:'社',color:'#EA580C'},
+  {key:'fun',name:'娱乐',char:'娱',color:'#2563EB'},
+  {key:'life',name:'生活',char:'生',color:'#16A34A'},
+];
 
 function drawContentCharts(cur,cmp){
   drawKeywordCloud(cur);
