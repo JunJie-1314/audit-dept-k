@@ -56,18 +56,28 @@
 })();
 </script>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#16171c" media="(prefers-color-scheme: dark)" />
     <title>K 的工作台 · LOCAL COMMAND</title>
     <script>
-      /* 主题预置（防白闪）：先于样式应用夜间模式选择 */
-      try {
-        if (localStorage.getItem('k_workbench_theme') === 'dark') {
-          document.documentElement.setAttribute('data-theme', 'dark');
-        }
-      } catch (e) {}
+      /* 主题预置（防白闪）：手动选择优先，没手动选过就跟随系统；
+         必须在样式生效前执行，否则 iPhone 上会先闪一下亮色。
+         注意与 AppShell.tsx 的 THEME_KEY / DARK_QUERY 保持一致。 */
+      (function () {
+        try {
+          var saved = localStorage.getItem('k_workbench_theme');
+          var dark = saved === 'dark' || saved === 'light'
+            ? saved === 'dark'
+            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+        } catch (e) {}
+      })();
     </script>
-    <script type="module" crossorigin src="./assets/index-Comperh0.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-CacO4PFu.css">
+    <script type="module" crossorigin src="./assets/index-njFRzuxG.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/rolldown-runtime-hePW80VL.js">
+    <link rel="modulepreload" crossorigin href="./assets/chartTheme-B-hZ52y1.js">
+    <link rel="stylesheet" crossorigin href="./assets/index-DkXjvBpn.css">
   </head>
   <body>
     <div id="root"></div>
