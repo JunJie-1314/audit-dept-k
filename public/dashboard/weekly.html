@@ -274,6 +274,11 @@
   .kiss-item .v{color:var(--c-text2);line-height:1.6;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;}
   .kiss-item .v.expand{-webkit-line-clamp:unset;}
   .kw-legend{margin-top:6px;text-align:center;line-height:1.9;}
+  /* 背景层（日常节奏）：口径 v2 双层呈现——主云只放本轮新事，日常型任务降为小字条，不参与字号竞争 */
+  .kw-bgstrip{margin-top:8px;padding-top:8px;border-top:1px dashed rgba(148,163,184,.45);display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center;font-size:11px;color:var(--c-text3,#94A3B8);}
+  .kw-bgstrip .lbl{opacity:.9;margin-right:2px;}
+  .kw-bgchip{background:rgba(148,163,184,.14);border-radius:10px;padding:1px 8px;color:var(--c-text2,#475569);white-space:nowrap;}
+  .kw-bgchip i{font-style:normal;opacity:.6;margin-left:3px;}
   .kiss-item.keep{background:#ECFDF5;border-color:var(--c-up);}.kiss-item.keep .k{color:#047857;}
   .kiss-item.improve{background:#FFFBEB;border-color:var(--c-warn);}.kiss-item.improve .k{color:#92400E;}
   .kiss-item.start{background:var(--c-primary-soft);border-color:var(--c-primary-border);}.kiss-item.start .k{color:var(--c-primary);}
@@ -998,7 +1003,7 @@ function renderContent(cur,cmp){
     </div>
     <div class="chart-row c2">
       <div class="chart-box"><h4>本周形成的关键知识资产</h4><ul style="margin:0;padding-left:18px;font-size:13px;color:var(--c-text2);line-height:1.8;">${assets||'<li>—</li>'}</ul></div>
-      <div class="chart-box"><h4>本周关键词与四系统高频词 · 领域/系统着色</h4><div id="chart-keyword-cloud" class="chart sm"></div><div class="chart-fallback"></div><div class="kw-legend" id="kwLegend"></div></div>
+      <div class="chart-box"><h4>本周关键词与四系统高频词 · 领域/系统着色</h4><div id="chart-keyword-cloud" class="chart sm"></div><div class="chart-fallback"></div><div class="kw-legend" id="kwLegend"></div><div class="kw-bgstrip" id="kwBgStrip"></div></div>
     </div>
   </section>`;
 }
@@ -1078,11 +1083,34 @@ function renderKwLegend(){
   const sysHtml=SYS_CLOUD_META.map(m=>`<span style="display:inline-flex;align-items:center;gap:4px;margin:0 8px;font-size:11px;color:var(--c-text3);"><span style="width:8px;height:8px;border-radius:2px;background:${m.color};display:inline-block;"></span>${escapeHtml(m.name)}词</span>`).join('');
   el.innerHTML=domHtml+sysHtml;
 }
+/** 背景层小字条：system_keywords_bg（日常节奏）——同一任务名一周做 5–7 次，记录的是习惯不是新事，
+ *  口径 v2 起不再让它们参与主云字号竞争，只在主云下方以「词×N」形式出现。四系统合并去重后按次数降序。 */
+function renderKwBgStrip(cur){
+  const el=$('kwBgStrip');if(!el)return;
+  const bg=(cur&&cur.system_keywords_bg)||{};
+  const seen=new Set(),rows=[];
+  SYS_CLOUD_META.forEach(m=>{
+    ((bg[m.key]||[])||[]).forEach(b=>{
+      const word=String((b&&b.word)||'').trim();
+      if(!word||seen.has(word))return;
+      seen.add(word);
+      rows.push({word:word,count:(b&&b.count)||1,sys:m.name,color:m.color});
+    });
+  });
+  rows.sort((a,b)=>b.count-a.count);
+  if(!rows.length){el.innerHTML='';el.hidden=true;return;}
+  el.hidden=false;
+  el.innerHTML='<span class="lbl">日常节奏</span>'+rows.slice(0,12).map(r=>
+    `<span class="kw-bgchip" title="${escapeHtml(r.sys)}系统 · 本周 ${r.count} 次" style="border-bottom:2px solid ${r.color};">${escapeHtml(r.word)}<i>×${r.count}</i></span>`
+  ).join('');
+}
+
 /** 绘制领域着色词云：周数形状 + 频率重复填充；四系统高频词（system_keywords 每系统 top8）以系统色并入同一池
  *  （2026-10-06 用户指令：独立四系统词云撤销，两池按池内 max 归一化到 [1,46] 同级字号，同名词条系统词优先）；
  *  无数据落空态，库缺失或 setOption 失败落领域/系统色 chips 降级态 */
 function drawKeywordCloud(cur){
   const el=$('chart-keyword-cloud');if(!el)return;
+  renderKwBgStrip(cur);
   const clouds=cur.system_keywords||{};
   /* 系统词池：每系统 top8，保序喂入（本周段在前 = 占位优先）；池内同名去重 */
   const sysRaw=[];
