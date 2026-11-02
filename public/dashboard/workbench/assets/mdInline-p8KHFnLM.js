@@ -1,1 +1,0 @@
-import{f as e}from"./chartTheme-BG5ZiF5s.js";var t=e();function n(e){return String(e??``).split(/\*\*(.+?)\*\*/g).map((e,n)=>n%2==1?(0,t.jsx)(`strong`,{children:e},n):(0,t.jsx)(`span`,{children:e},n))}export{n as t};
