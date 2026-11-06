@@ -1,1 +1,0 @@
-import{r as e}from"./client-BqBvHwuF.js";var t=e();function n({label:e,value:n,onChange:r,children:i}){return(0,t.jsxs)(`label`,{className:`review-week-select`,children:[(0,t.jsx)(`span`,{children:e}),(0,t.jsx)(`select`,{className:`ui-input`,"aria-label":e,value:n,onChange:e=>r(e.target.value),children:i})]})}export{n as t};
