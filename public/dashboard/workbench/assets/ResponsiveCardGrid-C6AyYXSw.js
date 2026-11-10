@@ -1,0 +1,1 @@
+import{r as e}from"./client-CKjMMZle.js";import"./index-BAXMqbFu.js";var t=e();function n({minCardWidth:e=240,children:n,className:r=``}){return(0,t.jsx)(`div`,{className:`review-card-grid ${r}`.trim(),style:{"--review-card-min":`${e}px`},children:n})}export{n as t};
