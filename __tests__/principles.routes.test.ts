@@ -15,16 +15,45 @@ import { newEventId, newPrincipleId, principleFingerprint, type PrincipleUsageEv
 /** 与 store 测试同款的极简内存 Redis（Upstash REST 单命令语义）。 */
 class MemoryRedis {
   readonly strings = new Map<string, string>();
+  readonly expiry = new Map<string, number>();
+  private live(key: string): boolean {
+    const until = this.expiry.get(key);
+    if (until !== undefined && Date.now() >= until) { this.strings.delete(key); this.expiry.delete(key); return false; }
+    return this.strings.has(key);
+  }
   command = async (args: Array<string | number>): Promise<unknown> => {
     const [name, ...rest] = args.map(String);
     switch (name) {
-      case 'GET': return this.strings.get(rest[0]) ?? null;
+      case 'GET': return this.live(rest[0]) ? this.strings.get(rest[0]) ?? null : null;
       case 'SET': {
-        if (rest.includes('NX') && this.strings.has(rest[0])) return null;
+        if (rest.includes('NX') && this.live(rest[0])) return null;
         this.strings.set(rest[0], rest[1]);
+        const px = rest.indexOf('PX');
+        if (px >= 0) this.expiry.set(rest[0], Date.now() + Number(rest[px + 1]));
+        else this.expiry.delete(rest[0]);
         return 'OK';
       }
-      case 'DEL': { this.strings.delete(rest[0]); return 1; }
+      case 'DEL': { const had = this.live(rest[0]); this.strings.delete(rest[0]); this.expiry.delete(rest[0]); return had ? 1 : 0; }
+      case 'EVAL': {
+        const script = String(rest[0]);
+        const count = Number(rest[1]);
+        const keys = rest.slice(2, 2 + count);
+        const argv = rest.slice(2 + count);
+        if (script === 'return 1') return 1;
+        if (script.includes("redis.call('DEL'")) {
+          if (this.live(keys[0]) && (this.strings.get(keys[0]) ?? '') === argv[0]) { this.strings.delete(keys[0]); this.expiry.delete(keys[0]); return 1; }
+          return 0;
+        }
+        if (script.includes('local current')) {
+          if ((this.strings.get(keys[0]) ?? '') !== argv[0]) return 0;
+          if ((this.strings.get(keys[1]) ?? '') !== (argv[1] ?? '')) return -1;
+          if (this.live(keys[2])) return -2;
+          this.strings.set(keys[2], argv[2]);
+          this.strings.set(keys[3], argv[3]);
+          return 1;
+        }
+        throw new Error('unsupported eval');
+      }
       default: throw new Error(`unsupported ${name}`);
     }
   };

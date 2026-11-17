@@ -19,16 +19,45 @@ import {
 /** 最小内存 Redis：只实现账本用到的命令，模拟 Upstash REST 的单命令原子语义。 */
 class MemoryRedis {
   readonly strings = new Map<string, string>();
+  readonly expiry = new Map<string, number>();
+  private live(key: string): boolean {
+    const until = this.expiry.get(key);
+    if (until !== undefined && Date.now() >= until) { this.strings.delete(key); this.expiry.delete(key); return false; }
+    return this.strings.has(key);
+  }
   command = async (args: Array<string | number>): Promise<unknown> => {
     const [name, ...rest] = args.map(String);
     switch (name) {
-      case 'GET': return this.strings.get(rest[0]) ?? null;
+      case 'GET': return this.live(rest[0]) ? this.strings.get(rest[0]) ?? null : null;
       case 'SET': {
-        if (rest.includes('NX') && this.strings.has(rest[0])) return null;
+        if (rest.includes('NX') && this.live(rest[0])) return null;
         this.strings.set(rest[0], rest[1]);
+        const px = rest.indexOf('PX');
+        if (px >= 0) this.expiry.set(rest[0], Date.now() + Number(rest[px + 1]));
+        else this.expiry.delete(rest[0]);
         return 'OK';
       }
-      case 'DEL': { this.strings.delete(rest[0]); return 1; }
+      case 'DEL': { const had = this.live(rest[0]); this.strings.delete(rest[0]); this.expiry.delete(rest[0]); return had ? 1 : 0; }
+      case 'EVAL': {
+        const script = String(rest[0]);
+        const count = Number(rest[1]);
+        const keys = rest.slice(2, 2 + count);
+        const argv = rest.slice(2 + count);
+        if (script === 'return 1') return 1;
+        if (script.includes("redis.call('DEL'")) {
+          if (this.live(keys[0]) && (this.strings.get(keys[0]) ?? '') === argv[0]) { this.strings.delete(keys[0]); this.expiry.delete(keys[0]); return 1; }
+          return 0;
+        }
+        if (script.includes('local current')) {
+          if ((this.strings.get(keys[0]) ?? '') !== argv[0]) return 0;
+          if ((this.strings.get(keys[1]) ?? '') !== (argv[1] ?? '')) return -1;
+          if (this.live(keys[2])) return -2;
+          this.strings.set(keys[2], argv[2]);
+          this.strings.set(keys[3], argv[3]);
+          return 1;
+        }
+        throw new Error('unsupported eval');
+      }
       default: throw new Error(`unsupported ${name}`);
     }
   };
@@ -207,8 +236,10 @@ describe('原则账本 · 事件协议', () => {
     const summary = await getSummary(redis);
     expect(summary.total).toBe(2);
     expect(Object.values(summary.counts).sort()).toEqual([1, 1]);
-    // 另一个客户端只读同一命名空间，得到同一份计数。
-    expect(await getSummary(redis)).toEqual(summary);
+    // 另一个客户端只读同一命名空间，得到同一份计数（syncedAt 为读取时间，不比）。
+    const otherClient = await getSummary(redis);
+    expect(otherClient.counts).toEqual(summary.counts);
+    expect(otherClient.catalog).toEqual(summary.catalog);
   });
 
   it('并发两个撤销抢同一条使用：只抵消一次，另一个显式失败', async () => {
@@ -326,20 +357,45 @@ describe('原则账本 · repair-round-2 一致性与故障注入', () => {
     expect(Object.values(summary.counts).sort()).toEqual([1, 1]);
   });
 
-  it('状态写入失败：整批回滚、锁释放，同事件重试只记一次', async () => {
+  it('提交响应丢失：整批回滚、锁可释放，同事件重试只记一次', async () => {
     let fail = true;
     const flaky = async (args: Array<string | number>) => {
-      if (fail && args[0] === 'SET' && String(args[1]).endsWith(':state')) {
+      // 模拟 COMMIT 的 EVAL 已执行但响应丢失：先让脚本真实执行，再抛网络错误。
+      if (fail && args[0] === 'EVAL' && String(args[1]).includes('local current')) {
         fail = false;
-        throw new Error('injected state write failure');
+        await memory.command(args);
+        throw new Error('injected response loss after commit');
       }
       return memory.command(args);
     };
     const use = event();
     await expect(recordEvents(flaky, [use])).rejects.toThrow('injected');
-    expect((await getSummary(memory.command)).total).toBe(0);
-    // 锁已释放（TTL 兜底之外应立即可再次写入），重试同一事件成功且只计一次。
+    // 提交已生效（响应丢失），重试读取到已有事件 → duplicate，不重复计数。
     const retry = await recordEvents(flaky, [use]);
+    expect(retry.accepted).toHaveLength(0);
+    expect(retry.duplicates).toHaveLength(1);
+    expect((await getSummary(memory.command)).total).toBe(1);
+    // 失败后的锁必须可被后续事务获取。
+    await recordEvents(memory.command, [event({ eventId: uniqueId() })]);
+    expect((await getSummary(memory.command)).total).toBe(2);
+  });
+
+  it('无 EVAL 的版本 CAS：写入前失败不落盘，重试成功且旧版本不能覆盖', async () => {
+    let fail = true;
+    const noEval = async (args: Array<string | number>) => {
+      if (args[0] === 'EVAL') throw new Error('unsupported EVAL');
+      if (fail && args[0] === 'SET' && String(args[1]).includes(':state:')) {
+        fail = false;
+        throw new Error('injected CAS write failure');
+      }
+      return memory.command(args);
+    };
+    const use = event();
+    const options = { lockTtlMs: 20, lockWaitMs: 500 };
+    await expect(recordEvents(noEval, [use], new Date(), options)).rejects.toThrow('injected');
+    expect((await getSummary(memory.command)).total).toBe(0);
+    await new Promise((resolve) => setTimeout(resolve, 30)); // 无 EVAL：等租约 TTL，绝不客户端 DEL
+    const retry = await recordEvents(noEval, [use], new Date(), options);
     expect(retry.accepted).toHaveLength(1);
     expect((await getSummary(memory.command)).total).toBe(1);
   });
@@ -401,3 +457,105 @@ function memoryRedisInstance(): { command: Redis } {
   const memory = new MemoryRedis();
   return { command: memory.command };
 }
+
+describe('原则账本 · repair-round-3 CAS fencing 与原子释放', () => {
+  it('旧持有者在提交前被抢先：不覆盖已提交事件，重放后两条都在', async () => {
+    const first = event();
+    const second = event({ eventId: uniqueId() });
+    let injected = false;
+    const racing = async (args: Array<string | number>) => {
+      if (!injected && args[0] === 'SET' && args[1] === 'principles:v1:state') {
+        injected = true;
+        // 另一个实例已提交 event2（版本 1），且持有自己的锁。
+        const competitor = {
+          version: 1, seq: 1, updatedAt: '2026-11-17T04:00:00.000Z',
+          events: { [second.eventId]: { ...second, principleId: 'pr_competitor000000001', serverTime: '2026-11-17T04:00:00.000Z', seq: 1, payloadHash: 'competing' } },
+          undo: {}, catalog: {},
+        };
+        await memory.command(['SET', 'principles:v1:state:1', JSON.stringify(competitor)]);
+        await memory.command(['SET', 'principles:v1:version', '1']);
+        await memory.command(['SET', 'principles:v1:lock', 'other-token']);
+      }
+      return memory.command(args);
+    };
+    const result = await recordEvents(racing, [first]);
+    expect(result.accepted).toHaveLength(1);
+    // 注入的“另一实例”在真实环境会自己释放锁；测试手动清锁以继续读。
+    await memory.command(['DEL', 'principles:v1:lock']);
+    const summary = await getSummary(memory.command);
+    expect(summary.total).toBe(2);
+    const backup = await exportBackup(memory.command);
+    expect(backup.events.map((row) => row.eventId).sort()).toEqual([first.eventId, second.eventId].sort());
+  });
+
+  it('释放用服务端比较删除：GET 后换主也不会删除新持有者锁', async () => {
+    let swapped = false;
+    const racing = async (args: Array<string | number>) => {
+      const value = await memory.command(args);
+      if (!swapped && args[0] === 'GET' && args[1] === 'principles:v1:lock') {
+        swapped = true;
+        // 模拟读取后租约到期、B 获得新锁。
+        await memory.command(['SET', 'principles:v1:lock', 'new-owner-token']);
+      }
+      return value;
+    };
+    await recordEvents(racing, [event()]);
+    expect(await memory.command(['GET', 'principles:v1:lock'])).toBe('new-owner-token');
+    // 清理后第三实例仍可进入，证明旧持有者没有留下“已删除”的新锁。
+    await memory.command(['DEL', 'principles:v1:lock']);
+    await recordEvents(memory.command, [event({ eventId: uniqueId() })]);
+    expect((await getSummary(memory.command)).total).toBe(2);
+  });
+
+  it('恢复旧备份不回退 seq，恢复后可继续写且序号递增', async () => {
+    const first = event();
+    await recordEvents(redis, [first]);
+    const oldBackup = await exportBackup(redis);
+    await recordEvents(redis, [event({ eventId: uniqueId() })]);
+    await recordEvents(redis, [event({ eventId: uniqueId() })]);
+    const before = await exportBackup(redis);
+    const maxBefore = Math.max(...before.events.map((row) => row.seq));
+    await restoreBackup(redis, oldBackup);
+    const afterRestore = await exportBackup(redis);
+    expect(Math.max(...afterRestore.events.map((row) => row.seq))).toBeGreaterThanOrEqual(maxBefore);
+    const next = await recordEvents(redis, [event({ eventId: uniqueId() })]);
+    expect(next.accepted[0].seq).toBeGreaterThan(maxBefore);
+  });
+});
+
+describe('原则账本 · repair-round-3 别名完整身份', () => {
+  it('显式修订保留旧指纹与新来源身份，导出/恢复后仍可精确重建', async () => {
+    const base = event();
+    const first = await recordEvents(redis, [base]);
+    const canonical = first.accepted[0].principleId;
+    const revised = event({
+      eventId: uniqueId(),
+      principle: {
+        ...base.principle,
+        id: 'pr_revised00000000000001',
+        eventIndex: '11/10 新来源',
+        title: '交情用一次少一次（改）',
+        fingerprint: principleFingerprint('交情用一次少一次（改）'),
+        replaces: base.principle.fingerprint,
+      },
+    });
+    const second = await recordEvents(redis, [revised]);
+    expect(second.accepted[0].principleId).toBe(canonical);
+    const summary = await getSummary(redis);
+    const entry = summary.catalog.find((row) => row.id === canonical)! as unknown as {
+      aliases: string[]; aliasIdentities?: Array<{ eventIndex: string; fingerprint: string }>;
+    };
+    expect(entry.aliases).toContain(revised.principle.fingerprint);
+    expect(entry.aliasIdentities?.some((identity) => identity.fingerprint === revised.principle.fingerprint && identity.eventIndex === '11/10 新来源')).toBe(true);
+
+    const backup = await exportBackup(redis);
+    const fresh = memoryRedisInstance();
+    await restoreBackup(fresh.command, backup);
+    const restored = await getSummary(fresh.command);
+    const restoredEntry = restored.catalog.find((row) => row.id === canonical)! as unknown as {
+      aliasIdentities?: Array<{ eventIndex: string; fingerprint: string }>;
+    };
+    expect(restoredEntry.aliasIdentities?.some((identity) => identity.eventIndex === '11/10 新来源')).toBe(true);
+    expect(restored.total).toBe(2);
+  });
+});
