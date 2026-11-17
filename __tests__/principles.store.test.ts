@@ -18,31 +18,17 @@ import {
 
 /** 最小内存 Redis：只实现账本用到的命令，模拟 Upstash REST 的单命令原子语义。 */
 class MemoryRedis {
-  readonly hashes = new Map<string, Map<string, string>>();
   readonly strings = new Map<string, string>();
   command = async (args: Array<string | number>): Promise<unknown> => {
     const [name, ...rest] = args.map(String);
-    const hash = (key: string) => {
-      if (!this.hashes.has(key)) this.hashes.set(key, new Map());
-      return this.hashes.get(key)!;
-    };
     switch (name) {
-      case 'HGET': return hash(rest[0]).get(rest[1]) ?? null;
-      case 'HSET': hash(rest[0]).set(rest[1], rest[2]); return 1;
-      case 'HSETNX': {
-        const h = hash(rest[0]);
-        if (h.has(rest[1])) return 0;
-        h.set(rest[1], rest[2]);
-        return 1;
-      }
-      case 'HGETALL': return [...hash(rest[0]).entries()].flat();
-      case 'INCR': {
-        const next = Number(this.strings.get(rest[0]) ?? 0) + 1;
-        this.strings.set(rest[0], String(next));
-        return next;
-      }
       case 'GET': return this.strings.get(rest[0]) ?? null;
-      case 'SET': this.strings.set(rest[0], rest[1]); return 'OK';
+      case 'SET': {
+        if (rest.includes('NX') && this.strings.has(rest[0])) return null;
+        this.strings.set(rest[0], rest[1]);
+        return 'OK';
+      }
+      case 'DEL': { this.strings.delete(rest[0]); return 1; }
       default: throw new Error(`unsupported ${name}`);
     }
   };
@@ -308,3 +294,110 @@ describe('原则账本 · 输入校验', () => {
     await expect(recordEvents(redis, many)).rejects.toMatchObject({ code: 'PRINCIPLES_BATCH_TOO_LARGE' });
   });
 });
+
+describe('原则账本 · repair-round-2 一致性与故障注入', () => {
+  it('同身份不同候选ID真正首次并发：单一 canonical，计数 2', async () => {
+    const [a, b] = await Promise.all([
+      recordEvents(redis, [event({ principle: { ...event().principle, id: 'pr_concurrentA0001' } })]),
+      recordEvents(redis, [event({ principle: { ...event().principle, id: 'pr_concurrentB0001' } })]),
+    ]);
+    const summary = await getSummary(redis);
+    expect(summary.catalog).toHaveLength(1);
+    expect(summary.total).toBe(2);
+    expect(Object.values(summary.counts)).toEqual([2]);
+    expect(new Set([...a.accepted.map((row) => row.principleId), ...b.accepted.map((row) => row.principleId)])).toEqual(
+      new Set([summary.catalog[0].id]),
+    );
+  });
+
+  it('不同身份同 slot 并发：各自 canonical，互不串计', async () => {
+    const base = event();
+    const another = event({
+      principle: {
+        ...base.principle,
+        id: 'pr_sameslot0000000000001',
+        title: '没有真正的保密',
+        fingerprint: principleFingerprint('没有真正的保密，只有还没传开的秘密'),
+      },
+    });
+    await Promise.all([recordEvents(redis, [base]), recordEvents(redis, [another])]);
+    const summary = await getSummary(redis);
+    expect(summary.catalog).toHaveLength(2);
+    expect(Object.values(summary.counts).sort()).toEqual([1, 1]);
+  });
+
+  it('状态写入失败：整批回滚、锁释放，同事件重试只记一次', async () => {
+    let fail = true;
+    const flaky = async (args: Array<string | number>) => {
+      if (fail && args[0] === 'SET' && String(args[1]).endsWith(':state')) {
+        fail = false;
+        throw new Error('injected state write failure');
+      }
+      return memory.command(args);
+    };
+    const use = event();
+    await expect(recordEvents(flaky, [use])).rejects.toThrow('injected');
+    expect((await getSummary(memory.command)).total).toBe(0);
+    // 锁已释放（TTL 兜底之外应立即可再次写入），重试同一事件成功且只计一次。
+    const retry = await recordEvents(flaky, [use]);
+    expect(retry.accepted).toHaveLength(1);
+    expect((await getSummary(memory.command)).total).toBe(1);
+  });
+
+  it('同 eventId 不同撤销目标：409 冲突，不产生副作用', async () => {
+    const first = event();
+    const second = event({ eventId: uniqueId() });
+    await recordEvents(redis, [first, second]);
+    const undo = { ...event({ eventId: uniqueId() }), op: 'undo' as const, targetEventId: first.eventId };
+    await recordEvents(redis, [undo]);
+    const conflict = { ...undo, targetEventId: second.eventId };
+    await expect(recordEvents(redis, [conflict])).rejects.toMatchObject({ code: 'PRINCIPLES_EVENT_CONFLICT' });
+    const summary = await getSummary(redis);
+    expect(summary.total).toBe(1);
+  });
+
+  it('并发导出与写入：导出是完整一致快照，恢复后仍可继续写', async () => {
+    const first = event();
+    const pending = event({ eventId: uniqueId(), principle: { ...first.principle, id: 'pr_second000000000000001', fingerprint: principleFingerprint('第二条') } });
+    const [backup, write] = await Promise.all([exportBackup(redis), recordEvents(redis, [first, pending])]);
+    expect(write.accepted).toHaveLength(2);
+    // 导出要么在写入前（0 条）要么在写入后（2 条），checksum 必须自洽。
+    expect([0, 2]).toContain(backup.events.length);
+    expect(backup.checksum).toBe(backupChecksum(backup.catalog, backup.events));
+    const second = memoryRedisInstance();
+    if (backup.events.length) {
+      await restoreBackup(second.command, backup);
+      expect((await getSummary(second.command)).total).toBe(2);
+    }
+    // 恢复后继续写：新事件成功并入，seq 递增。
+    const after = await recordEvents(redis, [event({ eventId: uniqueId() })]);
+    expect(after.accepted).toHaveLength(1);
+    expect(after.accepted[0].seq).toBeGreaterThan(write.accepted[1].seq);
+  });
+
+  it('恢复与写入并发：不覆盖恢复后的新事件，重复恢复不倍增', async () => {
+    const source = memoryRedisInstance();
+    const use = event();
+    await recordEvents(source.command, [use]);
+    const backup = await exportBackup(source.command);
+    const target = memoryRedisInstance();
+    await recordEvents(target.command, [event({ eventId: uniqueId() })]);
+    const [restored] = await Promise.all([
+      restoreBackup(target.command, backup),
+      recordEvents(target.command, [event({ eventId: uniqueId(), principle: { ...use.principle, id: 'pr_parallel0000000000001', fingerprint: principleFingerprint('并发新原则') } })]),
+    ]);
+    expect(restored.imported).toBe(1);
+    const summary = await getSummary(target.command);
+    expect(summary.total).toBe(3);
+    const again = await restoreBackup(target.command, backup);
+    expect(again.imported).toBe(0);
+    expect((await getSummary(target.command)).total).toBe(3);
+    await recordEvents(target.command, [event({ eventId: uniqueId(), principle: { ...use.principle, id: 'pr_after0000000000000001', fingerprint: principleFingerprint('恢复后新原则') } })]);
+    expect((await getSummary(target.command)).total).toBe(4);
+  });
+});
+
+function memoryRedisInstance(): { command: Redis } {
+  const memory = new MemoryRedis();
+  return { command: memory.command };
+}

@@ -14,31 +14,17 @@ import { newEventId, newPrincipleId, principleFingerprint, type PrincipleUsageEv
 
 /** 与 store 测试同款的极简内存 Redis（Upstash REST 单命令语义）。 */
 class MemoryRedis {
-  readonly hashes = new Map<string, Map<string, string>>();
   readonly strings = new Map<string, string>();
-  command = (args: Array<string | number>): unknown => {
+  command = async (args: Array<string | number>): Promise<unknown> => {
     const [name, ...rest] = args.map(String);
-    const hash = (key: string) => {
-      if (!this.hashes.has(key)) this.hashes.set(key, new Map());
-      return this.hashes.get(key)!;
-    };
     switch (name) {
-      case 'HGET': return hash(rest[0]).get(rest[1]) ?? null;
-      case 'HSET': hash(rest[0]).set(rest[1], rest[2]); return 1;
-      case 'HSETNX': {
-        const h = hash(rest[0]);
-        if (h.has(rest[1])) return 0;
-        h.set(rest[1], rest[2]);
-        return 1;
-      }
-      case 'HGETALL': return [...hash(rest[0]).entries()].flat();
-      case 'INCR': {
-        const next = Number(this.strings.get(rest[0]) ?? 0) + 1;
-        this.strings.set(rest[0], String(next));
-        return next;
-      }
       case 'GET': return this.strings.get(rest[0]) ?? null;
-      case 'SET': this.strings.set(rest[0], rest[1]); return 'OK';
+      case 'SET': {
+        if (rest.includes('NX') && this.strings.has(rest[0])) return null;
+        this.strings.set(rest[0], rest[1]);
+        return 'OK';
+      }
+      case 'DEL': { this.strings.delete(rest[0]); return 1; }
       default: throw new Error(`unsupported ${name}`);
     }
   };
@@ -88,7 +74,8 @@ beforeEach(() => {
   delete process.env.UPSTASH_REDIS_REST_TOKEN;
   vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => {
     const command = JSON.parse(String(init?.body ?? '[]')) as Array<string | number>;
-    return new Response(JSON.stringify({ result: memory.command(command) }), {
+    const result = await memory.command(command);
+    return new Response(JSON.stringify({ result }), {
       status: 200, headers: { 'content-type': 'application/json' },
     });
   }));
@@ -210,7 +197,6 @@ describe('/api/principles/backup', () => {
     expect(backup.events).toHaveLength(1);
 
     // 清空账本，模拟换设备/重建后恢复。
-    memory.hashes.clear();
     memory.strings.clear();
     const dry = await backupPost(withCookie('/api/principles/backup', {
       method: 'POST', body: JSON.stringify({ backup, dryRun: true }),

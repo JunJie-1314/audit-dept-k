@@ -1,19 +1,22 @@
 /**
  * 原则使用账本 · 站点私有持久化（Upstash Redis REST，零依赖）。
  *
- * 事件协议（与 workbench/shared/principles/contract.ts 同契约）：
- * - 事件按 `eventId` 用 `HSETNX` 原子占位：同 ID 同载荷 = 幂等重试（返回原回执）；
- *   同 ID 不同载荷 = 409 冲突。两台设备并发不同事件各自成功，不会互相覆盖。
- * - 撤销用 `HSETNX undo:<targetEventId>` 抢占，保证同一条 use 只被抵消一次；
- *   已抵消后再次撤销是幂等重试（返回原回执），不把计数减成负数。
- * - 计数是**派生值**：每次读取都从事件重算，计数缓存坏了也不会把账本写丢。
- * - catalog 负责稳定原则 ID：ID 由服务端在首见时生成并持久登记（不从序号/正文哈希派生）；
- *   同一槽位（week+system+eventIndex）正文改动时沿用原 ID，只新增正文指纹别名。
+ * 一致性协议（2026-11-17 repair-round-2，替代逐命令 HSETNX 写法）：
+ * - 整份账本（events / undo 占位 / catalog）序列化为**一个** `principles:v1:state` 键；
+ *   每次事务在内存中完成校验、身份解析、事件与目录更新后，**一次 SET 提交**。
+ *   任何步骤抛错都不会写半份状态：不存在「undo 锁已抢、事件未写」的中间态。
+ * - 跨进程用 Redis 分布式锁 `principles:v1:lock`（`SET NX PX 10000`）串行化事务；
+ *   同进程再加一条 Promise 队列（测试/无 NX 语义的客户端也不会并发写同一快照）。
+ * - 身份注册以锁内状态为准：同一完整身份（week+system+eventIndex+正文指纹）首次并发时，
+ *   先拿到锁的事务登记 canonical ID，后到者直接读回同一 ID（F3）。
+ * - 只有客户端显式 `replaces`（明确编辑关联）才登记正文别名；同槽位不再推断替换（F2）。
+ * - 读取（summary/export）只 GET 单键，天然是一致快照；restore 在锁内合并后单次提交。
  * - 命名空间独立：`principles:v1:*`，与财务 `finance:*` 完全隔离。
  *
  * 仅可在服务端 Route Handler import（凭据只来自部署环境变量）。
  */
 
+import { randomUUID } from 'node:crypto';
 import {
   PRINCIPLE_USAGE_SCHEMA_VERSION,
   backupChecksum,
@@ -31,10 +34,11 @@ import {
 } from './contract';
 
 const NS = 'principles:v1';
-const KEY_EVENTS = `${NS}:events`;
-const KEY_CATALOG = `${NS}:catalog`;
-const KEY_UNDO = `${NS}:undo`;
-const KEY_SEQ = `${NS}:seq`;
+const KEY_STATE = `${NS}:state`;
+const KEY_LOCK = `${NS}:lock`;
+const LOCK_TTL_MS = 10_000;
+const LOCK_WAIT_MS = 2_000;
+const LOCK_RETRY_MS = 15;
 
 export class PrinciplesStoreError extends Error {
   readonly status: number;
@@ -97,110 +101,144 @@ function asString(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-function parseObject<T>(raw: string | null, code: string): T | null {
+function parseState(raw: string | null): State | null {
   if (raw == null || raw === '') return null;
+  let value: unknown;
   try {
-    return JSON.parse(raw) as T;
+    value = JSON.parse(raw);
   } catch {
-    throw new PrinciplesStoreError(code, '原则账本存储内容损坏，已保留原数据');
+    throw new PrinciplesStoreError('PRINCIPLES_STORE_CORRUPT', '原则账本存储内容损坏，已保留原数据');
   }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new PrinciplesStoreError('PRINCIPLES_STORE_CORRUPT', '原则账本存储结构损坏，已保留原数据');
+  }
+  const state = value as State;
+  if (state.version !== PRINCIPLE_USAGE_SCHEMA_VERSION || !Number.isSafeInteger(state.seq) ||
+    !state.events || typeof state.events !== 'object' || Array.isArray(state.events) ||
+    !state.undo || typeof state.undo !== 'object' || Array.isArray(state.undo) ||
+    !state.catalog || typeof state.catalog !== 'object' || Array.isArray(state.catalog)) {
+    throw new PrinciplesStoreError('PRINCIPLES_STORE_CORRUPT', '原则账本存储结构损坏，已保留原数据');
+  }
+  return state;
 }
 
-/** HGETALL 兼容两种上游返回（平铺数组 / 对象）。 */
-function hashPairs(raw: unknown): Array<[string, string]> {
-  if (Array.isArray(raw)) {
-    const pairs: Array<[string, string]> = [];
-    for (let i = 0; i + 1 < raw.length; i += 2) pairs.push([String(raw[i]), String(raw[i + 1])]);
-    return pairs;
-  }
-  if (raw && typeof raw === 'object') {
-    return Object.entries(raw as Record<string, unknown>).map(([key, value]) => [key, String(value)]);
-  }
-  return [];
+interface State {
+  version: typeof PRINCIPLE_USAGE_SCHEMA_VERSION;
+  seq: number;
+  updatedAt: string;
+  events: Record<string, PrincipleUsageEvent>;
+  /** targetEventId → undoEventId（同一条 use 只允许一个撤销占位）。 */
+  undo: Record<string, string>;
+  /** catalog 字段：`id:<id>` JSON / `slot:<slot>` JSON ids / `alias:<fp>` id */
+  catalog: Record<string, string>;
 }
 
-async function readEvents(redis: Redis): Promise<PrincipleUsageEvent[]> {
-  const pairs = hashPairs(await redis(['HGETALL', KEY_EVENTS]));
-  const events: PrincipleUsageEvent[] = [];
-  for (const [, raw] of pairs) {
-    const event = parseObject<PrincipleUsageEvent>(raw, 'PRINCIPLES_STORE_CORRUPT');
-    if (event && typeof event.eventId === 'string') events.push(event);
-  }
-  return events.sort((a, b) => a.seq - b.seq || a.eventId.localeCompare(b.eventId));
+function emptyState(now: string): State {
+  return { version: PRINCIPLE_USAGE_SCHEMA_VERSION, seq: 0, updatedAt: now, events: {}, undo: {}, catalog: {} };
 }
 
-async function readCatalog(redis: Redis): Promise<PrincipleCatalogEntry[]> {
-  const pairs = hashPairs(await redis(['HGETALL', KEY_CATALOG]));
-  const entries: PrincipleCatalogEntry[] = [];
-  for (const [field, raw] of pairs) {
-    if (!field.startsWith('id:')) continue;
-    const entry = parseObject<PrincipleCatalogEntry>(raw, 'PRINCIPLES_STORE_CORRUPT');
-    if (entry && typeof entry.id === 'string') entries.push(entry);
-  }
-  return entries.sort((a, b) => a.id.localeCompare(b.id));
+/** 同进程串行队列：即使 Redis 客户端不支持 NX（测试替身），也不会并发改写同一快照。 */
+let chain: Promise<unknown> = Promise.resolve();
+function serialized<T>(task: () => Promise<T>): Promise<T> {
+  const run = chain.then(task, task);
+  chain = run.then(() => undefined, () => undefined);
+  return run;
 }
 
-async function saveCatalogEntry(redis: Redis, entry: PrincipleCatalogEntry): Promise<void> {
-  await redis(['HSET', KEY_CATALOG, `id:${entry.id}`, JSON.stringify(entry)]);
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function withLock<T>(redis: Redis, task: () => Promise<T>): Promise<T> {
+  return serialized(async () => {
+    const token = randomUUID();
+    const deadline = Date.now() + LOCK_WAIT_MS;
+    let acquired = false;
+    while (!acquired) {
+      const result = await redis(['SET', KEY_LOCK, token, 'NX', 'PX', String(LOCK_TTL_MS)]);
+      acquired = result === 'OK' || result === 1 || result === true;
+      if (acquired) break;
+      if (Date.now() >= deadline) {
+        throw new PrinciplesStoreError('PRINCIPLES_STORE_BUSY', '原则账本正在被另一台设备写入，请稍后重试', 503);
+      }
+      await sleep(LOCK_RETRY_MS);
+    }
+    try {
+      return await task();
+    } finally {
+      // 释放失败不掩盖业务成功：锁有 TTL，最坏 10s 自愈。
+      try {
+        const owner = asString(await redis(['GET', KEY_LOCK]));
+        if (owner === token) await redis(['DEL', KEY_LOCK]);
+      } catch { /* TTL 兜底 */ }
+    }
+  });
+}
+
+async function readState(redis: Redis): Promise<State> {
+  return parseState(asString(await redis(['GET', KEY_STATE]))) ?? emptyState(new Date().toISOString());
+}
+
+async function writeState(redis: Redis, state: State): Promise<void> {
+  state.updatedAt = new Date().toISOString();
+  await redis(['SET', KEY_STATE, JSON.stringify(state)]);
+}
+
+function catalogEntryOf(state: State, id: string): PrincipleCatalogEntry | null {
+  const raw = state.catalog[`id:${id}`];
+  return raw ? JSON.parse(raw) as PrincipleCatalogEntry : null;
+}
+
+function saveCatalogEntry(state: State, entry: PrincipleCatalogEntry): void {
+  state.catalog[`id:${entry.id}`] = JSON.stringify(entry);
   const slotField = `slot:${principleSlotKey(entry)}`;
-  const raw = asString(await redis(['HGET', KEY_CATALOG, slotField]));
-  const ids = parseObject<string[]>(raw, 'PRINCIPLES_STORE_CORRUPT') ?? [];
-  if (!ids.includes(entry.id)) {
-    await redis(['HSET', KEY_CATALOG, slotField, JSON.stringify([...ids, entry.id])]);
-  }
+  const ids = state.catalog[slotField] ? JSON.parse(state.catalog[slotField]) as string[] : [];
+  if (!ids.includes(entry.id)) state.catalog[slotField] = JSON.stringify([...ids, entry.id]);
   for (const alias of [entry.fingerprint, ...entry.aliases]) {
-    await redis(['HSETNX', KEY_CATALOG, `alias:${alias}`, entry.id]);
+    if (!state.catalog[`alias:${alias}`]) state.catalog[`alias:${alias}`] = entry.id;
   }
+  // 完整身份 → canonical ID：同身份并发时以先登记者为赢家。
+  const identityField = `identity:${[entry.week, entry.system, entry.eventIndex, entry.fingerprint]
+    .map((part) => String(part).replace(/[|\u241f]/g, ' ').trim()).join('\u241f')}`;
+  if (!state.catalog[identityField]) state.catalog[identityField] = entry.id;
 }
 
 /**
- * 解析稳定原则 ID。顺序：槽位内指纹命中 → 槽位唯一则沿用并登记新指纹（正文改动保留 ID）
- * → 全局指纹别名 → 新建 ID 注册。返回 canonical ID 与（可能新增的）catalog 条目。
+ * 解析稳定原则 ID（锁内调用）。顺序：完整身份 → 显式 replaces 别名 → 全局指纹别名 → 新建。
+ * 同槽位但正文不同 = 不同原则，永不推断为「修订」。
  */
-async function resolvePrinciple(
-  redis: Redis,
-  input: PrincipleUsageEventInput,
-  now: string,
-): Promise<PrincipleCatalogEntry> {
-  const { principle } = input;
-  const slotField = `slot:${principleSlotKey(principle)}`;
-  const slotIds = parseObject<string[]>(asString(await redis(['HGET', KEY_CATALOG, slotField])), 'PRINCIPLES_STORE_CORRUPT') ?? [];
-  const load = async (id: string) => parseObject<PrincipleCatalogEntry>(
-    asString(await redis(['HGET', KEY_CATALOG, `id:${id}`])), 'PRINCIPLES_STORE_CORRUPT',
-  );
-
-  for (const id of slotIds) {
-    const entry = await load(id);
-    if (entry && (entry.fingerprint === principle.fingerprint || entry.aliases.includes(principle.fingerprint))) {
-      return { ...entry, title: principle.title || entry.title, lastSeen: now };
-    }
+function resolvePrinciple(state: State, input: PrincipleUsageEventInput, now: string): PrincipleCatalogEntry {
+  const principle = input.principle;
+  const identityField = `identity:${[principle.week, principle.system, principle.eventIndex, principle.fingerprint]
+    .map((part) => String(part).replace(/[|\u241f]/g, ' ').trim()).join('\u241f')}`;
+  const identityId = state.catalog[identityField];
+  if (identityId) {
+    const existing = catalogEntryOf(state, identityId);
+    if (existing) return { ...existing, title: principle.title || existing.title, lastSeen: now };
   }
   if (principle.replaces) {
-    // 客户端明确告知「正文改过」：沿用旧指纹对应的 ID，只新增别名。
-    for (const id of slotIds) {
-      const existing = await load(id);
-      if (existing && (existing.fingerprint === principle.replaces || existing.aliases.includes(principle.replaces))) {
-        const aliases = Array.from(new Set([...existing.aliases, principle.fingerprint]))
-          .filter((alias) => alias !== existing.fingerprint);
+    const replacedId = state.catalog[`alias:${principle.replaces}`];
+    if (replacedId) {
+      const existing = catalogEntryOf(state, replacedId);
+      if (existing) {
+        state.catalog[`alias:${principle.fingerprint}`] = existing.id;
         const entry: PrincipleCatalogEntry = {
           ...existing,
           title: principle.title || existing.title,
-          aliases,
+          aliases: Array.from(new Set([...existing.aliases, principle.fingerprint]))
+            .filter((alias) => alias !== existing.fingerprint),
           lastSeen: now,
         };
-        await redis(['HSET', KEY_CATALOG, `alias:${principle.fingerprint}`, existing.id]);
+        saveCatalogEntry(state, entry);
         return entry;
       }
     }
   }
-  const byAlias = asString(await redis(['HGET', KEY_CATALOG, `alias:${principle.fingerprint}`]));
+  const byAlias = state.catalog[`alias:${principle.fingerprint}`];
   if (byAlias) {
-    const existing = await load(byAlias);
+    const existing = catalogEntryOf(state, byAlias);
     if (existing) return { ...existing, title: principle.title || existing.title, lastSeen: now };
   }
-  const id = principle.id;
   const entry: PrincipleCatalogEntry = {
-    id,
+    id: principle.id,
     week: principle.week,
     system: principle.system,
     eventIndex: principle.eventIndex,
@@ -210,7 +248,7 @@ async function resolvePrinciple(
     firstSeen: now,
     lastSeen: now,
   };
-  await saveCatalogEntry(redis, entry);
+  saveCatalogEntry(state, entry);
   return entry;
 }
 
@@ -228,7 +266,16 @@ export interface RecordEventsResult {
   summary: PrincipleUsageSummary;
 }
 
-/** 写入/补写一批事件；校验、幂等、冲突与撤销语义都在这里。 */
+function summaryOf(state: State, now: string): PrincipleUsageSummary {
+  const events = Object.values(state.events).sort((a, b) => a.seq - b.seq || a.eventId.localeCompare(b.eventId));
+  const catalog = Object.entries(state.catalog)
+    .filter(([field]) => field.startsWith('id:'))
+    .map(([, raw]) => JSON.parse(raw) as PrincipleCatalogEntry)
+    .sort((a, b) => a.id.localeCompare(b.id));
+  return summarizeUsage(events, catalog, now);
+}
+
+/** 写入/补写一批事件：校验、幂等、冲突、撤销与身份注册在同一锁事务里一次提交。 */
 export async function recordEvents(redis: Redis, rawEvents: unknown, now: Date = new Date()): Promise<RecordEventsResult> {
   if (!Array.isArray(rawEvents) || !rawEvents.length) {
     throw new PrinciplesStoreError('PRINCIPLES_EVENTS_REQUIRED', 'events 必须是非空数组', 400);
@@ -248,97 +295,90 @@ export async function recordEvents(redis: Redis, rawEvents: unknown, now: Date =
     inputs.push(checked.value);
   }
   const ordered = dedupePending(inputs);
-  const accepted: EventReceipt[] = [];
-  const duplicates: EventReceipt[] = [];
   const nowIso = now.toISOString();
 
-  for (const input of ordered) {
-    const hash = payloadHash(input);
-    const existingRaw = asString(await redis(['HGET', KEY_EVENTS, input.eventId]));
-    if (existingRaw) {
-      const existing = parseObject<PrincipleUsageEvent>(existingRaw, 'PRINCIPLES_STORE_CORRUPT');
-      if (!existing) continue;
-      if (existing.payloadHash !== hash) {
-        throw new PrinciplesStoreError(
-          'PRINCIPLES_EVENT_CONFLICT',
-          `事件 ${input.eventId} 已存在且载荷不同，拒绝覆盖`,
-          409,
-        );
-      }
-      duplicates.push({
-        eventId: existing.eventId, principleId: existing.principleId, seq: existing.seq,
-        serverTime: existing.serverTime, duplicate: true,
-      });
-      continue;
-    }
+  return withLock(redis, async () => {
+    const state = await readState(redis);
+    const accepted: EventReceipt[] = [];
+    const duplicates: EventReceipt[] = [];
 
-    let target: PrincipleUsageEvent | null = null;
-    if (input.op === 'undo') {
-      const targetRaw = asString(await redis(['HGET', KEY_EVENTS, String(input.targetEventId)]));
-      target = parseObject<PrincipleUsageEvent>(targetRaw, 'PRINCIPLES_STORE_CORRUPT');
-      if (!target || target.op !== 'use') {
-        throw new PrinciplesStoreError('PRINCIPLES_TARGET_MISSING', '撤销目标不存在或不是一次使用记录', 409);
-      }
-      const claimed = Number(await redis(['HSETNX', KEY_UNDO, target.eventId, input.eventId]));
-      const owner = asString(await redis(['HGET', KEY_UNDO, target.eventId]));
-      if (claimed !== 1 && owner !== input.eventId) {
-        throw new PrinciplesStoreError('PRINCIPLES_ALREADY_CANCELLED', '这条使用记录已被撤销，不能重复抵消', 409);
-      }
-    }
-
-    const catalogEntry = await resolvePrinciple(redis, input, nowIso);
-    const seq = Number(await redis(['INCR', KEY_SEQ]));
-    const event: PrincipleUsageEvent = {
-      ...input,
-      principleId: catalogEntry.id,
-      serverTime: nowIso,
-      seq: Number.isFinite(seq) ? seq : 0,
-      payloadHash: hash,
-    };
-    if (target) {
-      const updatedTarget: PrincipleUsageEvent = { ...target, cancelledBy: input.eventId };
-      await redis(['HSET', KEY_EVENTS, target.eventId, JSON.stringify(updatedTarget)]);
-    }
-    const inserted = Number(await redis(['HSETNX', KEY_EVENTS, input.eventId, JSON.stringify(event)]));
-    if (inserted !== 1) {
-      // 同事件并发重试：读回已写入的事件，载荷一致按幂等回执处理。
-      const raced = parseObject<PrincipleUsageEvent>(
-        asString(await redis(['HGET', KEY_EVENTS, input.eventId])), 'PRINCIPLES_STORE_CORRUPT',
-      );
-      if (raced && raced.payloadHash === hash) {
+    for (const input of ordered) {
+      const hash = payloadHash(input);
+      const existing = state.events[input.eventId];
+      if (existing) {
+        if (existing.payloadHash !== hash) {
+          throw new PrinciplesStoreError(
+            'PRINCIPLES_EVENT_CONFLICT',
+            `事件 ${input.eventId} 已存在且载荷不同，拒绝覆盖`,
+            409,
+          );
+        }
         duplicates.push({
-          eventId: raced.eventId, principleId: raced.principleId, seq: raced.seq,
-          serverTime: raced.serverTime, duplicate: true,
+          eventId: existing.eventId, principleId: existing.principleId, seq: existing.seq,
+          serverTime: existing.serverTime, duplicate: true,
         });
         continue;
       }
-      throw new PrinciplesStoreError('PRINCIPLES_EVENT_CONFLICT', '同 eventId 的并发写入载荷不同，拒绝覆盖', 409);
-    }
-    await saveCatalogEntry(redis, { ...catalogEntry, lastSeen: nowIso });
-    accepted.push({
-      eventId: event.eventId, principleId: event.principleId, seq: event.seq,
-      serverTime: event.serverTime, duplicate: false,
-    });
-  }
 
-  return { accepted, duplicates, summary: await getSummary(redis) };
+      let target: PrincipleUsageEvent | null = null;
+      if (input.op === 'undo') {
+        target = state.events[String(input.targetEventId)] ?? null;
+        if (!target || target.op !== 'use') {
+          throw new PrinciplesStoreError('PRINCIPLES_TARGET_MISSING', '撤销目标不存在或不是一次使用记录', 409);
+        }
+        const owner = state.undo[target.eventId];
+        if (owner && owner !== input.eventId) {
+          throw new PrinciplesStoreError('PRINCIPLES_ALREADY_CANCELLED', '这条使用记录已被撤销，不能重复抵消', 409);
+        }
+      }
+
+      const catalogEntry = resolvePrinciple(state, input, nowIso);
+      state.seq += 1;
+      const event: PrincipleUsageEvent = {
+        ...input,
+        principleId: catalogEntry.id,
+        serverTime: nowIso,
+        seq: state.seq,
+        payloadHash: hash,
+      };
+      state.events[event.eventId] = event;
+      if (target) {
+        state.undo[target.eventId] = input.eventId;
+        state.events[target.eventId] = { ...target, cancelledBy: input.eventId };
+      }
+      accepted.push({
+        eventId: event.eventId, principleId: event.principleId, seq: event.seq,
+        serverTime: event.serverTime, duplicate: false,
+      });
+    }
+
+    // 单次提交：任何上面的校验/冲突都不会留下部分状态。
+    await writeState(redis, state);
+    return { accepted, duplicates, summary: summaryOf(state, nowIso) };
+  });
 }
 
-/** 读取计数摘要（计数从事件重算，不信任缓存）。 */
+/** 读取计数摘要（单键 GET，天然一致快照）。 */
 export async function getSummary(redis: Redis, now: Date = new Date()): Promise<PrincipleUsageSummary> {
-  const [events, catalog] = await Promise.all([readEvents(redis), readCatalog(redis)]);
-  return summarizeUsage(events, catalog, now.toISOString());
+  return summaryOf(await readState(redis), now.toISOString());
 }
 
 export async function exportBackup(redis: Redis, now: Date = new Date()): Promise<PrincipleUsageBackup> {
-  const [events, catalog] = await Promise.all([readEvents(redis), readCatalog(redis)]);
-  return {
-    version: PRINCIPLE_USAGE_SCHEMA_VERSION,
-    exportedAt: now.toISOString(),
-    catalog,
-    events,
-    checksum: backupChecksum(catalog, events),
-  };
+  return withLock(redis, async () => {
+    const state = await readState(redis);
+    const events = Object.values(state.events).sort((a, b) => a.seq - b.seq || a.eventId.localeCompare(b.eventId));
+    const catalog = Object.entries(state.catalog)
+      .filter(([field]) => field.startsWith('id:'))
+      .map(([, raw]) => JSON.parse(raw) as PrincipleCatalogEntry)
+      .sort((a, b) => a.id.localeCompare(b.id));
+    return {
+      version: PRINCIPLE_USAGE_SCHEMA_VERSION,
+      exportedAt: now.toISOString(),
+      catalog,
+      events,
+      checksum: backupChecksum(catalog, events),
+    };
+  });
 }
 
 export interface RestoreResult {
@@ -350,8 +390,8 @@ export interface RestoreResult {
 }
 
 /**
- * 恢复：全量校验 + 校验和通过后才写入；按 eventId 合并，重复恢复不会加倍。
- * `dryRun=true` 只报告将导入的条数，不写任何键。
+ * 恢复：校验和通过后，在锁内合并到当前状态并单次提交；重复恢复不倍增。
+ * `dryRun=true` 只报告，不写键。
  */
 export async function restoreBackup(redis: Redis, body: unknown, options: { dryRun?: boolean } = {}): Promise<RestoreResult> {
   const checked = validateBackup(body);
@@ -359,63 +399,52 @@ export async function restoreBackup(redis: Redis, body: unknown, options: { dryR
     throw new PrinciplesStoreError('PRINCIPLES_BACKUP_INVALID', checked.errors.join('；'), 400);
   }
   const backup = checked.value;
-  const conflicts: string[] = [];
-  let imported = 0;
-  let duplicates = 0;
-  const existingBySlot = new Map<string, PrincipleUsageEvent>();
-
-  for (const event of backup.events) {
-    const existingRaw = asString(await redis(['HGET', KEY_EVENTS, event.eventId]));
-    const existing = parseObject<PrincipleUsageEvent>(existingRaw, 'PRINCIPLES_STORE_CORRUPT');
-    if (existing) {
-      if (existing.payloadHash !== event.payloadHash) conflicts.push(event.eventId);
-      else duplicates += 1;
-      continue;
-    }
-    imported += 1;
-    existingBySlot.set(event.eventId, event);
-  }
-  if (conflicts.length) {
-    throw new PrinciplesStoreError(
-      'PRINCIPLES_BACKUP_CONFLICT',
-      `备份与现有账本有 ${conflicts.length} 个同 ID 不同载荷事件：${conflicts.slice(0, 5).join('、')}`,
-      409,
-    );
-  }
-  if (options.dryRun) {
-    return { dryRun: true, imported, duplicates, conflicts, summary: await getSummary(redis) };
-  }
-
-  const ordered = backup.events.slice().sort((a, b) => a.seq - b.seq);
-  for (const event of ordered) {
-    if (!existingBySlot.has(event.eventId)) continue;
-    const inserted = Number(await redis(['HSETNX', KEY_EVENTS, event.eventId, JSON.stringify(event)]));
-    if (inserted !== 1) continue;
-    if (event.op === 'undo' && event.targetEventId) {
-      const target = parseObject<PrincipleUsageEvent>(
-        asString(await redis(['HGET', KEY_EVENTS, event.targetEventId])), 'PRINCIPLES_STORE_CORRUPT',
+  return withLock(redis, async () => {
+    const state = await readState(redis);
+    const conflicts = backup.events
+      .filter((event) => state.events[event.eventId] && state.events[event.eventId].payloadHash !== event.payloadHash)
+      .map((event) => event.eventId);
+    if (conflicts.length) {
+      throw new PrinciplesStoreError(
+        'PRINCIPLES_BACKUP_CONFLICT',
+        `备份与现有账本有 ${conflicts.length} 个同 ID 不同载荷事件：${conflicts.slice(0, 5).join('、')}`,
+        409,
       );
-      if (target) {
-        await redis(['HSET', KEY_EVENTS, event.targetEventId, JSON.stringify({ ...target, cancelledBy: event.eventId })]);
-      }
-      await redis(['HSETNX', KEY_UNDO, event.targetEventId, event.eventId]);
     }
-    const entry = backup.catalog.find((item) => item.id === event.principleId);
-    await saveCatalogEntry(redis, entry ?? {
-      id: event.principleId,
-      week: event.principle.week,
-      system: event.principle.system,
-      eventIndex: event.principle.eventIndex,
-      title: event.principle.title,
-      fingerprint: event.principle.fingerprint,
-      aliases: [],
-      firstSeen: event.serverTime,
-      lastSeen: event.serverTime,
-    });
-  }
-  const maxSeq = ordered.reduce((max, event) => Math.max(max, event.seq), 0);
-  const currentSeq = Number(asString(await redis(['GET', KEY_SEQ])) ?? 0);
-  if (maxSeq > currentSeq) await redis(['SET', KEY_SEQ, String(maxSeq)]);
-
-  return { dryRun: false, imported, duplicates, conflicts, summary: await getSummary(redis) };
+    const fresh = backup.events.filter((event) => !state.events[event.eventId]);
+    if (options.dryRun) {
+      return {
+        dryRun: true, imported: fresh.length,
+        duplicates: backup.events.length - fresh.length,
+        conflicts: [], summary: summaryOf(state, new Date().toISOString()),
+      };
+    }
+    for (const event of fresh.slice().sort((a, b) => a.seq - b.seq)) {
+      state.events[event.eventId] = event;
+      if (event.op === 'undo' && event.targetEventId) {
+        state.undo[event.targetEventId] = state.undo[event.targetEventId] ?? event.eventId;
+        const target = state.events[event.targetEventId];
+        if (target) state.events[event.targetEventId] = { ...target, cancelledBy: event.eventId };
+      }
+      const entry = backup.catalog.find((item) => item.id === event.principleId) ?? {
+        id: event.principleId,
+        week: event.principle.week,
+        system: event.principle.system,
+        eventIndex: event.principle.eventIndex,
+        title: event.principle.title,
+        fingerprint: event.principle.fingerprint,
+        aliases: [] as string[],
+        firstSeen: event.serverTime,
+        lastSeen: event.serverTime,
+      };
+      saveCatalogEntry(state, entry);
+      state.seq = Math.max(state.seq, event.seq);
+    }
+    await writeState(redis, state);
+    return {
+      dryRun: false, imported: fresh.length,
+      duplicates: backup.events.length - fresh.length,
+      conflicts: [], summary: summaryOf(state, new Date().toISOString()),
+    };
+  });
 }
