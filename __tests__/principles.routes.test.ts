@@ -45,8 +45,10 @@ class MemoryRedis {
           return 0;
         }
         if (script.includes('local current')) {
-          if ((this.strings.get(keys[0]) ?? '') !== argv[0]) return 0;
+          if (!this.live(keys[0]) || (this.strings.get(keys[0]) ?? '') !== argv[0]) return 0;
           if ((this.strings.get(keys[1]) ?? '') !== (argv[1] ?? '')) return -1;
+          if ((this.strings.get(keys[3]) ?? '') !== argv[4]) return -1;
+          if (argv[4] === '' && this.live(keys[4])) return -3;
           if (this.live(keys[2])) return -2;
           this.strings.set(keys[2], argv[2]);
           this.strings.set(keys[3], argv[3]);

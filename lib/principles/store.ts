@@ -1,17 +1,10 @@
 /**
  * 原则使用账本 · 站点私有持久化（Upstash Redis REST，零依赖）。
  *
- * 一致性协议（2026-11-17 repair-round-3）：
- * - 账本版本化：状态写 `principles:v1:state`（v0）或 `principles:v1:state:<v>`（v>0），
- *   当前版本 `principles:v1:version`。提交只能写 **下一版本**（`SET NX`），
- *   因此过期持有者无法覆盖别人已提交的状态（CAS fencing，F6）。
- * - 生产路径用 Lua 原子校验「锁 token + 当前状态原始值」，再一次写入下一版本；
- *   不支持 EVAL 的客户端退回 **版本 CAS**（`SET NX` + version），仍然不接受旧版本写入。
- * - 释放锁用 Lua `compare-and-delete`（GET 与 DEL 在同一脚本内），不会删除新持有者的锁（F7）；
- *   不支持 EVAL 时只等待租约 TTL 自动过期，绝不客户端 GET 后 DEL。
- * - 事件/撤销/目标/目录在同一内存快照上校验，成功后一次提交；失败不写半份状态。
- * - 导出/恢复在锁内读取—合并—提交，导出为一致快照；重复恢复不倍增，seq 不回退。
- * - 别名携带完整 identity（week/system/eventIndex + 指纹），新设备可精确重建映射（F8）。
+ * 一致性协议：只接受 Redis Lua 原子提交与 compare-delete 释放。
+ * 不支持 EVAL、网络错误、CAS 拒绝均不降级为分步写入；队列可按事件 ID 重试。
+ * 不可变版本状态与当前指针在同一脚本提交；旧单键账本只读/可导出，拒写待迁移。
+ * 别名完整身份属于共享契约与备份校验和，恢复只消费已校验数据。
  *
  * 仅可在服务端 Route Handler import（凭据只来自部署环境变量）。
  */
@@ -34,7 +27,6 @@ import {
 } from './contract';
 
 const NS = 'principles:v1';
-const KEY_INTENT = `${NS}:state`; // 写入意向标记（非权威状态；仅用于诊断/并发观测）
 const KEY_STATE = `${NS}:state`;
 const KEY_VERSION = `${NS}:version`;
 const KEY_LOCK = `${NS}:lock`;
@@ -43,12 +35,14 @@ const DEFAULT_LOCK_WAIT_MS = 2_000;
 const LOCK_RETRY_MS = 15;
 const COMMIT_ATTEMPTS = 8;
 
-// 权威状态按版本存不可变键；`principles:v1:state` 只作写入意向标记（不参与读取）。
+// 旧单键 state 永不写入；新格式以不可变状态键和原子版本指针为权威。
 const stateKey = (version: number): string => `${KEY_STATE}:${version}`;
 
 const COMMIT_LUA = `if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
 local current = redis.call('GET', KEYS[2]) or ''
 if current ~= ARGV[2] then return -1 end
+if (redis.call('GET', KEYS[4]) or '') ~= ARGV[5] then return -1 end
+if ARGV[5] == '' and redis.call('EXISTS', KEYS[5]) == 1 then return -3 end
 if redis.call('SET', KEYS[3], ARGV[3], 'NX') == false then return -2 end
 redis.call('SET', KEYS[4], ARGV[4])
 return 1`;
@@ -117,17 +111,8 @@ function asString(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-/** 别名完整身份：来源可改（eventIndex 变化）时仍能精确重建映射。 */
-export interface AliasIdentity {
-  week: string;
-  system: string;
-  eventIndex: string;
-  fingerprint: string;
-}
-
-interface CatalogEntry extends PrincipleCatalogEntry {
-  aliasIdentities?: AliasIdentity[];
-}
+type AliasIdentity = import('./contract').PrincipleIdentity;
+type CatalogEntry = PrincipleCatalogEntry;
 
 interface State {
   version: typeof PRINCIPLE_USAGE_SCHEMA_VERSION;
@@ -144,10 +129,12 @@ interface Current {
   version: number;
   raw: string;
   state: State;
+  legacy?: boolean;
+  pointer?: string;
 }
 
 function parseState(raw: string | null, version: number): Current {
-  if (raw == null || raw === '') {
+  if (raw === null) {
     return {
       version: 0,
       raw: '',
@@ -183,28 +170,25 @@ function serialized<T>(task: () => Promise<T>): Promise<T> {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** EVAL 能力缓存：不支持时退回版本 CAS / TTL 释放，绝不 GET 后 DEL。 */
-const evalSupport = new WeakMap<Redis, boolean>();
-
-async function supportsEval(redis: Redis): Promise<boolean> {
-  const cached = evalSupport.get(redis);
-  if (cached !== undefined) return cached;
-  try {
-    await redis(['EVAL', 'return 1', '0']);
-    evalSupport.set(redis, true);
-    return true;
-  } catch {
-    evalSupport.set(redis, false);
-    return false;
-  }
-}
-
 async function readCurrent(redis: Redis): Promise<Current> {
-  const version = Number(asString(await redis(['GET', KEY_VERSION])) ?? 0);
-  if (!Number.isSafeInteger(version) || version < 0) {
+  const pointer = asString(await redis(['GET', KEY_VERSION]));
+  if (pointer === null) {
+    const legacy = asString(await redis(['GET', KEY_STATE]));
+    if (legacy !== null) return { ...parseState(legacy, 0), legacy: true };
+    // 先前分步提交遗留孤儿状态时不能默认为新账本。
+    if (await redis(['GET', stateKey(1)]) !== null || await redis(['GET', stateKey(0)]) !== null) {
+      // 指针可能刚由另一实例发布，重读一次后取该不可变快照。
+      if (await redis(['GET', KEY_VERSION]) !== null) return readCurrent(redis);
+      throw new PrinciplesStoreError('PRINCIPLES_STORE_CORRUPT', '账本存在未发布的状态，已保留原数据，请恢复版本指针');
+    }
+    return parseState(null, 0);
+  }
+  if (!/^[1-9][0-9]*$/.test(pointer) || !Number.isSafeInteger(Number(pointer))) {
     throw new PrinciplesStoreError('PRINCIPLES_STORE_CORRUPT', '原则账本版本号损坏，已保留原数据');
   }
-  return parseState(asString(await redis(['GET', stateKey(version)])), version);
+  const raw = asString(await redis(['GET', stateKey(Number(pointer))]));
+  if (!raw) throw new PrinciplesStoreError('PRINCIPLES_STORE_CORRUPT', '版本指向的账本缺失，已停止写入');
+  return { ...parseState(raw, Number(pointer)), pointer };
 }
 
 export interface StoreOptions {
@@ -235,56 +219,26 @@ async function withLock<T>(redis: Redis, options: StoreOptions, task: (token: st
   });
 }
 
-/** 原子 compare-and-delete：Lua 内比较 token 并删除；不支持 EVAL 时靠 TTL，绝不客户端 DEL。 */
+/** 原子释放；失败等待 TTL，绝不客户端 GET/DEL。 */
 async function releaseLock(redis: Redis, token: string): Promise<void> {
-  // 诊断读取不影响删除判定；真正删除只在下面的 EVAL 比较脚本内发生。
-  try { await redis(['GET', KEY_LOCK]); } catch { /* ignore */ }
-  if (await supportsEval(redis)) {
-    try {
-      await redis(['EVAL', RELEASE_LUA, '1', KEY_LOCK, token]);
-    } catch { /* 释放响应丢失：TTL 兜底 */ }
-  }
-  // 不支持 EVAL：只等租约 TTL 自动过期，绝不客户端 GET 后 DEL。
+  try { await redis(['EVAL', RELEASE_LUA, '1', KEY_LOCK, token]); }
+  catch { /* 清理失败不改变业务结果；租约最终过期。 */ }
 }
 
 interface CommitResult { ok: boolean; reason?: 'lock' | 'version' }
 
-/**
- * 原子提交：服务端校验锁 token + 当前状态原始值（CAS），成功后写下一版本。
- * 失败返回原因，由调用方重读最新状态后重放事务。
- */
-async function commitState(
-  redis: Redis,
-  token: string,
-  current: Current,
-  next: State,
-): Promise<CommitResult> {
+async function commitState(redis: Redis, token: string, current: Current, next: State): Promise<CommitResult> {
   next.updatedAt = new Date().toISOString();
-  const nextRaw = JSON.stringify(next);
-  const nextVersion = current.version + 1;
-  // 写入意向（非权威）：observability + 让并发测试能明确看到提交窗口；不参与读取。
-  try { await redis(['SET', KEY_INTENT, JSON.stringify({ token, version: nextVersion })]); } catch { /* 不阻断提交 */ }
-  if (await supportsEval(redis)) {
-    const result = Number(await redis([
-      'EVAL', COMMIT_LUA, '4',
-      KEY_LOCK, stateKey(current.version), stateKey(nextVersion), KEY_VERSION,
-      token, current.raw, nextRaw, String(nextVersion),
-    ]));
-    if (result === 1) return { ok: true };
-    // 锁已过期/换主或版本已前进：退回版本 CAS（下一版本键 SET NX）。
-    // 旧持有者仍不能覆盖：目标版本键已被胜者占用。
-    const won = await redis(['SET', stateKey(nextVersion), nextRaw, 'NX']);
-    if (won === 'OK' || won === 1 || won === true) {
-      await redis(['SET', KEY_VERSION, String(nextVersion)]);
-      return { ok: true };
-    }
-    return { ok: false, reason: result === 0 ? 'lock' : 'version' };
-  }
-  // 无 EVAL：下一版本键用 SET NX 做 CAS；旧版本写入永远失败。
-  const won = await redis(['SET', stateKey(nextVersion), nextRaw, 'NX']);
-  if (won !== 'OK' && won !== 1 && won !== true) return { ok: false, reason: 'version' };
-  await redis(['SET', KEY_VERSION, String(nextVersion)]);
-  return { ok: true };
+  const result = Number(await redis([
+    'EVAL', COMMIT_LUA, '5', KEY_LOCK, stateKey(current.version),
+    stateKey(current.version + 1), KEY_VERSION, KEY_STATE,
+    token, current.raw, JSON.stringify(next), String(current.version + 1), current.pointer ?? '',
+  ]));
+  if (result === 1) return { ok: true };
+  if (result === -3) throw new PrinciplesStoreError('PRINCIPLES_MIGRATION_REQUIRED', '旧账本已保留，请先导出并迁移后再写入');
+  if (result === -2) throw new PrinciplesStoreError('PRINCIPLES_STORE_CORRUPT', '下一版本已有未发布状态，已保留原数据，请恢复版本指针');
+  if (result === 0 || result === -1) return { ok: false, reason: result === 0 ? 'lock' : 'version' };
+  throw new PrinciplesStoreError('PRINCIPLES_STORE_UPSTREAM', '原则账本返回未知提交结果，请重试');
 }
 
 /** 在锁内反复 CAS 提交，冲突时重读最新状态重放（事件按 eventId 幂等）。 */
@@ -292,19 +246,22 @@ async function transact<T>(
   redis: Redis,
   options: StoreOptions,
   apply: (state: State) => T,
+  persist = true,
 ): Promise<{ result: T; state: State }> {
-  return withLock(redis, options, async (token) => {
-    for (let attempt = 0; attempt < COMMIT_ATTEMPTS; attempt++) {
+  for (let attempt = 0; attempt < COMMIT_ATTEMPTS; attempt++) {
+    const committed = await withLock(redis, options, async (token) => {
       const current = await readCurrent(redis);
+      if (persist && current.legacy) throw new PrinciplesStoreError('PRINCIPLES_MIGRATION_REQUIRED', '旧账本已保留，可导出备份；迁移前不接受新写入');
       const state = structuredClone(current.state);
       const result = apply(state);
-      const committed = await commitState(redis, token, current, state);
-      if (committed.ok) return { result, state };
-      if (!committed.reason) break;
-      // 另一写入者已提交下一版本：重读后把自己的业务重放一遍。
-    }
-    throw new PrinciplesStoreError('PRINCIPLES_STORE_BUSY', '原则账本并发冲突，请稍后重试', 503);
-  });
+      if (!persist) return { result, state };
+      const commit = await commitState(redis, token, current, state);
+      return commit.ok ? { result, state } : null;
+    });
+    if (committed) return committed;
+    // CAS 拒绝后重新获得租约、读取最新快照，绝不沿旧租约降级写入。
+  }
+  throw new PrinciplesStoreError('PRINCIPLES_STORE_BUSY', '原则账本并发冲突，请稍后重试', 503);
 }
 
 function catalogEntryOf(state: State, id: string): CatalogEntry | null {
@@ -317,6 +274,13 @@ const identityField = (identity: { week: string; system: string; eventIndex: str
     .map((part) => String(part).replace(/[|\u241f]/g, ' ').trim()).join('\u241f')}`;
 
 function saveCatalogEntry(state: State, entry: CatalogEntry): void {
+  const previous = catalogEntryOf(state, entry.id);
+  if (previous) entry = { ...previous, title: entry.title, lastSeen: entry.lastSeen,
+    aliases: Array.from(new Set([...previous.aliases, ...entry.aliases, entry.fingerprint]))
+      .filter(alias => alias !== previous.fingerprint),
+    aliasIdentities: [...(previous.aliasIdentities ?? []), entry, ...(entry.aliasIdentities ?? [])]
+      .map(({ week, system, eventIndex, fingerprint }) => ({ week, system, eventIndex, fingerprint })),
+  };
   const seen = new Set<string>();
   const identities: AliasIdentity[] = [
     { week: entry.week, system: entry.system, eventIndex: entry.eventIndex, fingerprint: entry.fingerprint },
@@ -362,7 +326,7 @@ function resolvePrinciple(state: State, input: PrincipleUsageEventInput, now: st
         const aliases = Array.from(new Set([...existing.aliases, principle.fingerprint]))
           .filter((alias) => alias !== existing.fingerprint);
         const aliasIdentities = [
-          ...(existing.aliasIdentities ?? []).filter((item) => item.fingerprint !== principle.fingerprint),
+          ...(existing.aliasIdentities ?? []),
           identity,
         ];
         const entry: CatalogEntry = {
@@ -535,27 +499,6 @@ export interface RestoreResult {
   summary: PrincipleUsageSummary;
 }
 
-/** 备份里可能携带别名完整身份（契约校验会忽略额外字段，这里从原始 catalog 补回）。 */
-function aliasIdentitiesFrom(raw: unknown): Map<string, AliasIdentity[]> {
-  const result = new Map<string, AliasIdentity[]>();
-  const catalog = (raw as { catalog?: unknown } | null)?.catalog;
-  if (!Array.isArray(catalog)) return result;
-  for (const entry of catalog) {
-    const row = entry as { id?: unknown; aliasIdentities?: unknown };
-    if (typeof row.id !== 'string' || !Array.isArray(row.aliasIdentities)) continue;
-    const identities: AliasIdentity[] = [];
-    for (const item of row.aliasIdentities) {
-      const alias = item as Record<string, unknown>;
-      if (typeof alias.week === 'string' && typeof alias.system === 'string' &&
-        typeof alias.eventIndex === 'string' && typeof alias.fingerprint === 'string') {
-        identities.push({ week: alias.week, system: alias.system, eventIndex: alias.eventIndex, fingerprint: alias.fingerprint });
-      }
-    }
-    if (identities.length) result.set(row.id, identities);
-  }
-  return result;
-}
-
 /**
  * 恢复：校验和通过后，在锁内合并到当前状态并提交下一版本；重复恢复不倍增，seq 不回退。
  * `dryRun=true` 只报告，不写键。
@@ -570,7 +513,6 @@ export async function restoreBackup(
     throw new PrinciplesStoreError('PRINCIPLES_BACKUP_INVALID', checked.errors.join('；'), 400);
   }
   const backup = checked.value;
-  const aliasIdentities = aliasIdentitiesFrom(body);
   const { result, state } = await transact(redis, options, (draft) => {
     const conflicts = backup.events
       .filter((event) => draft.events[event.eventId] && draft.events[event.eventId].payloadHash !== event.payloadHash)
@@ -604,12 +546,11 @@ export async function restoreBackup(
         firstSeen: event.serverTime,
         lastSeen: event.serverTime,
       }) as CatalogEntry;
-      const identities = aliasIdentities.get(entry.id);
-      saveCatalogEntry(draft, identities ? { ...entry, aliasIdentities: identities } : entry);
+      saveCatalogEntry(draft, entry);
       // seq 只前进：恢复旧备份不能把已提交的更高 seq 回退。
       draft.seq = Math.max(draft.seq, event.seq);
     }
     return { dryRun: false, imported: fresh.length, duplicates: backup.events.length - fresh.length, conflicts: [] };
-  });
+  }, !options.dryRun);
   return { ...result, summary: summaryOf(state, new Date().toISOString()) };
 }

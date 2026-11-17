@@ -66,6 +66,8 @@ export interface PrincipleCatalogEntry {
   fingerprint: string;
   /** 正文改动保留 ID：新增的正文指纹别名。 */
   aliases: string[];
+  /** 完整修订来源；省略仅用于兼容旧格式无此字段的备份。 */
+  aliasIdentities?: PrincipleIdentity[];
   firstSeen: string;
   lastSeen: string;
 }
@@ -247,6 +249,9 @@ export function backupChecksum(catalog: PrincipleCatalogEntry[], events: Princip
   const items = [...catalog].sort((a, b) => a.id.localeCompare(b.id)).map((entry) => [
     entry.id, entry.week, entry.system, entry.eventIndex, entry.title, entry.fingerprint,
     [...entry.aliases].sort(), entry.firstSeen, entry.lastSeen,
+    ...(entry.aliasIdentities === undefined ? [] : [[...entry.aliasIdentities]
+      .sort((a, b) => identityKey(a).localeCompare(identityKey(b)))
+      .map((identity) => [identity.week, identity.system, identity.eventIndex, identity.fingerprint])]),
   ]);
   const rows = [...events].sort((a, b) => a.seq - b.seq).map((event) => [
     event.version, event.eventId, event.op, event.targetEventId ?? '', event.deviceId,
@@ -310,12 +315,47 @@ export function validateBackup(body: unknown): ValidationResult<PrincipleUsageBa
       errors.push(`catalog 条目不合法：${String((entry as Record<string, unknown>)?.id ?? '?')}`);
       continue;
     }
+    let aliasIdentities: PrincipleIdentity[] | undefined;
+    if (entry.aliasIdentities !== undefined) {
+      if (!Array.isArray(entry.aliasIdentities)) {
+        errors.push('aliasIdentities 必须是数组');
+        continue;
+      }
+      aliasIdentities = [];
+      for (const rawIdentity of entry.aliasIdentities) {
+        const identity = rawIdentity as Record<string, unknown> | null;
+        if (!identity || typeof identity !== 'object' || Array.isArray(identity) ||
+          typeof identity.week !== 'string' || !identity.week.trim() || identity.week.length > 32 ||
+          typeof identity.system !== 'string' || !identity.system.trim() || identity.system.length > 32 ||
+          typeof identity.eventIndex !== 'string' || !identity.eventIndex.trim() || identity.eventIndex.length > 300 ||
+          typeof identity.fingerprint !== 'string' || !HASH_RE.test(identity.fingerprint) ||
+          (identity.fingerprint !== entry.fingerprint && !entry.aliases.includes(identity.fingerprint))) {
+          errors.push('完整身份别名不合法或未关联目录指纹');
+          continue;
+        }
+        aliasIdentities.push({ week: identity.week, system: identity.system,
+          eventIndex: identity.eventIndex, fingerprint: identity.fingerprint });
+      }
+    }
     catalogEntries.push({
       id: String(entry.id), week: String(entry.week), system: String(entry.system),
       eventIndex: String(entry.eventIndex), title: String(entry.title),
       fingerprint: String(entry.fingerprint), aliases: (entry.aliases as unknown[]).map(String),
       firstSeen: String(entry.firstSeen), lastSeen: String(entry.lastSeen),
+      ...(aliasIdentities !== undefined ? { aliasIdentities } : {}),
     });
+  }
+  const owners = new Map<string, string>();
+  const ids = new Set<string>();
+  for (const entry of catalogEntries) {
+    if (ids.has(entry.id)) errors.push('目录包含重复 ID');
+    ids.add(entry.id);
+    for (const identity of [entry, ...(entry.aliasIdentities ?? [])]) {
+      const key = identityKey(identity);
+      const owner = owners.get(key);
+      if (owner && owner !== entry.id) errors.push('同一完整身份绑定了多个原则');
+      owners.set(key, entry.id);
+    }
   }
   const eventsOut: PrincipleUsageEvent[] = [];
   for (const raw of events) {

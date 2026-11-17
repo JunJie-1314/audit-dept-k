@@ -49,8 +49,10 @@ class MemoryRedis {
           return 0;
         }
         if (script.includes('local current')) {
-          if ((this.strings.get(keys[0]) ?? '') !== argv[0]) return 0;
+          if (!this.live(keys[0]) || (this.strings.get(keys[0]) ?? '') !== argv[0]) return 0;
           if ((this.strings.get(keys[1]) ?? '') !== (argv[1] ?? '')) return -1;
+          if ((this.strings.get(keys[3]) ?? '') !== argv[4]) return -1;
+          if (argv[4] === '' && this.live(keys[4])) return -3;
           if (this.live(keys[2])) return -2;
           this.strings.set(keys[2], argv[2]);
           this.strings.set(keys[3], argv[3]);
@@ -380,22 +382,18 @@ describe('原则账本 · repair-round-2 一致性与故障注入', () => {
     expect((await getSummary(memory.command)).total).toBe(2);
   });
 
-  it('无 EVAL 的版本 CAS：写入前失败不落盘，重试成功且旧版本不能覆盖', async () => {
-    let fail = true;
-    const noEval = async (args: Array<string | number>) => {
+  it('EVAL 不可用时拒写且无孤儿版本，服务恢复后重试成功', async () => {
+    const noEval: Redis = async (args) => {
       if (args[0] === 'EVAL') throw new Error('unsupported EVAL');
-      if (fail && args[0] === 'SET' && String(args[1]).includes(':state:')) {
-        fail = false;
-        throw new Error('injected CAS write failure');
-      }
       return memory.command(args);
     };
     const use = event();
-    const options = { lockTtlMs: 20, lockWaitMs: 500 };
-    await expect(recordEvents(noEval, [use], new Date(), options)).rejects.toThrow('injected');
+    await expect(recordEvents(noEval, [use], new Date(), { lockTtlMs: 20 })).rejects.toThrow('unsupported EVAL');
+    expect(memory.strings.has('principles:v1:state:1')).toBe(false);
+    expect(memory.strings.has('principles:v1:version')).toBe(false);
     expect((await getSummary(memory.command)).total).toBe(0);
-    await new Promise((resolve) => setTimeout(resolve, 30)); // 无 EVAL：等租约 TTL，绝不客户端 DEL
-    const retry = await recordEvents(noEval, [use], new Date(), options);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const retry = await recordEvents(memory.command, [use]);
     expect(retry.accepted).toHaveLength(1);
     expect((await getSummary(memory.command)).total).toBe(1);
   });
@@ -464,7 +462,7 @@ describe('原则账本 · repair-round-3 CAS fencing 与原子释放', () => {
     const second = event({ eventId: uniqueId() });
     let injected = false;
     const racing = async (args: Array<string | number>) => {
-      if (!injected && args[0] === 'SET' && args[1] === 'principles:v1:state') {
+      if (!injected && args[0] === 'EVAL' && String(args[1]).includes('local current')) {
         injected = true;
         // 另一个实例已提交 event2（版本 1），且持有自己的锁。
         const competitor = {
@@ -474,7 +472,7 @@ describe('原则账本 · repair-round-3 CAS fencing 与原子释放', () => {
         };
         await memory.command(['SET', 'principles:v1:state:1', JSON.stringify(competitor)]);
         await memory.command(['SET', 'principles:v1:version', '1']);
-        await memory.command(['SET', 'principles:v1:lock', 'other-token']);
+        await memory.command(['SET', 'principles:v1:lock', 'other-token', 'PX', '1']);
       }
       return memory.command(args);
     };
@@ -488,16 +486,15 @@ describe('原则账本 · repair-round-3 CAS fencing 与原子释放', () => {
     expect(backup.events.map((row) => row.eventId).sort()).toEqual([first.eventId, second.eventId].sort());
   });
 
-  it('释放用服务端比较删除：GET 后换主也不会删除新持有者锁', async () => {
+  it('释放用服务端比较删除：释放前换主也不会删除新持有者锁', async () => {
     let swapped = false;
     const racing = async (args: Array<string | number>) => {
-      const value = await memory.command(args);
-      if (!swapped && args[0] === 'GET' && args[1] === 'principles:v1:lock') {
+      if (!swapped && args[0] === 'EVAL' && String(args[1]).includes("redis.call('DEL'")) {
         swapped = true;
         // 模拟读取后租约到期、B 获得新锁。
         await memory.command(['SET', 'principles:v1:lock', 'new-owner-token']);
       }
-      return value;
+      return memory.command(args);
     };
     await recordEvents(racing, [event()]);
     expect(await memory.command(['GET', 'principles:v1:lock'])).toBe('new-owner-token');
@@ -557,5 +554,89 @@ describe('原则账本 · repair-round-3 别名完整身份', () => {
     };
     expect(restoredEntry.aliasIdentities?.some((identity) => identity.eventIndex === '11/10 新来源')).toBe(true);
     expect(restored.total).toBe(2);
+  });
+});
+
+
+describe('队长修复 F9-F13 · 拒绝降级与历史保护', () => {
+  it.each([0, -1, -2])('Lua 返回 %i 后不执行分步写，重新获取租约重试', async (denial) => {
+    const commands: Array<Array<string | number>> = [];
+    const rejecting: Redis = async (args) => {
+      commands.push(args);
+      if (args[0] === 'EVAL' && String(args[1]).includes('local current')) return denial;
+      return memory.command(args);
+    };
+    await expect(recordEvents(rejecting, [event()])).rejects.toMatchObject({ code: denial === -2 ? 'PRINCIPLES_STORE_CORRUPT' : 'PRINCIPLES_STORE_BUSY' });
+    expect(commands.filter(args => args[0] === 'SET' && args[1] !== 'principles:v1:lock')).toEqual([]);
+    expect((await getSummary(memory.command)).total).toBe(0);
+    expect(commands.filter(args => args[0] === 'SET' && args[1] === 'principles:v1:lock')).toHaveLength(denial === -2 ? 1 : 8);
+  });
+
+  it('EVAL 网络失败不缓存能力缺失，同一客户端恢复后仍用 Lua', async () => {
+    let failed = false, commits = 0;
+    const flaky: Redis = async args => {
+      if (args[0] === 'EVAL' && String(args[1]).includes('local current')) {
+        commits++;
+        if (!failed) { failed = true; throw new Error('network unavailable'); }
+      }
+      return memory.command(args);
+    };
+    const use = event();
+    await expect(recordEvents(flaky, [use])).rejects.toThrow('network unavailable');
+    expect((await getSummary(redis)).total).toBe(0);
+    expect(memory.strings.has('principles:v1:state:1')).toBe(false);
+    await recordEvents(flaky, [use]);
+    expect(commits).toBe(2);
+    expect((await getSummary(redis)).total).toBe(1);
+  });
+
+  it('旧单键账本可读可导出；写入及恢复拒绝，原文未变', async () => {
+    await recordEvents(redis, [event()]);
+    const legacy = memory.strings.get('principles:v1:state:1')!;
+    memory.strings.clear();
+    memory.strings.set('principles:v1:state', legacy);
+    expect((await getSummary(redis)).total).toBe(1);
+    const backup = await exportBackup(redis);
+    expect(backup.events).toHaveLength(1);
+    await expect(recordEvents(redis, [event()])).rejects.toMatchObject({ code: 'PRINCIPLES_MIGRATION_REQUIRED' });
+    await expect(restoreBackup(redis, backup)).rejects.toMatchObject({ code: 'PRINCIPLES_MIGRATION_REQUIRED' });
+    expect(memory.strings.get('principles:v1:state')).toBe(legacy);
+    expect([...memory.strings.keys()]).toEqual(['principles:v1:state']);
+    const fresh = new MemoryRedis();
+    await restoreBackup(fresh.command, backup);
+    expect((await getSummary(fresh.command)).total).toBe(1);
+  });
+
+  it.each(['missing', 'invalid', 'orphan'])('损坏指针/孤儿版本 %s 不当空账本覆盖', async kind => {
+    if (kind === 'missing') memory.strings.set('principles:v1:version', '7');
+    if (kind === 'invalid') memory.strings.set('principles:v1:version', 'NaN');
+    if (kind === 'orphan') memory.strings.set('principles:v1:state:1', '{}');
+    const before = [...memory.strings];
+    await expect(getSummary(redis)).rejects.toMatchObject({ code: 'PRINCIPLES_STORE_CORRUPT' });
+    await expect(recordEvents(redis, [event()])).rejects.toMatchObject({ code: 'PRINCIPLES_STORE_CORRUPT' });
+    expect([...memory.strings]).toEqual(before);
+  });
+
+  it.each(['week', 'system', 'eventIndex', 'fingerprint', 'remove'])('完整别名 %s 改动未更新校验和，恢复拒绝且零写入', async field => {
+    await recordEvents(redis, [event()]);
+    const backup = await exportBackup(redis);
+    const broken = structuredClone(backup);
+    if (field === 'remove') delete broken.catalog[0].aliasIdentities;
+    else Object.assign(broken.catalog[0].aliasIdentities![0], { [field]: field === 'fingerprint' ? 'abcdef12' : 'corrupted' });
+    const fresh = new MemoryRedis();
+    await expect(restoreBackup(fresh.command, broken)).rejects.toMatchObject({ code: 'PRINCIPLES_BACKUP_INVALID' });
+    expect([...fresh.strings]).toEqual([]);
+  });
+
+  it('旧无完整别名的备份兼容；预演不写版本', async () => {
+    await recordEvents(redis, [event()]);
+    const backup = await exportBackup(redis);
+    backup.catalog.forEach(row => { delete row.aliasIdentities; });
+    backup.checksum = backupChecksum(backup.catalog, backup.events);
+    const fresh = new MemoryRedis();
+    await restoreBackup(fresh.command, backup, { dryRun: true });
+    expect([...fresh.strings]).toEqual([]);
+    await restoreBackup(fresh.command, backup);
+    expect((await getSummary(fresh.command)).total).toBe(1);
   });
 });
