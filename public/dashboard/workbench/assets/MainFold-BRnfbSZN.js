@@ -1,1 +1,0 @@
-import{i as e}from"./client-B7EThp63.js";import{S as t,m as n,p as r}from"./index-BiEuc14m.js";var i=e();function a({storageKey:e,title:a,children:o,subtitle:s,className:c}){let l=r(),u=n(e,[`main`],l);return(0,i.jsx)(t,{id:`main`,title:a,subtitle:s,open:u.isOpen(`main`),onToggle:()=>u.setOpen(`main`,!u.isOpen(`main`)),className:c,children:o})}export{a as t};
