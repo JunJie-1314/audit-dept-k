@@ -1,0 +1,1 @@
+import{i as e}from"./client-BTNgGrMA.js";import{A as t,C as n,S as r}from"./index-CkddAjuz.js";var i=e();function a({storageKey:e,title:a,children:o,subtitle:s,className:c}){let l=r(),u=n(e,[`main`],l);return(0,i.jsx)(t,{id:`main`,title:a,subtitle:s,open:u.isOpen(`main`),onToggle:()=>u.setOpen(`main`,!u.isOpen(`main`)),className:c,children:o})}export{a as t};

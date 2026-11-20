@@ -1,0 +1,1 @@
+import{a as e,c as t,i as n}from"./client-BTNgGrMA.js";var r=t(e(),1),i=n(),a=(0,r.forwardRef)(function({children:e,className:t,...n},r){return(0,i.jsx)(`button`,{...n,ref:r,type:`button`,className:`ui-detail-btn${t?` ${t}`:``}`,"aria-haspopup":`dialog`,children:e})});export{a as t};
